@@ -13,7 +13,7 @@ decision, it does not ship.
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Genetics core + test suite | done |
-| 2 | Renderer: genotype to creature image | not started |
+| 2 | Renderer: genotype to creature image | done |
 | 3 | Core loop: breed, hatch, raise, age, die | not started |
 | 4 | Combat and expeditions | not started |
 | 5 | Content: six species, evolution, campaign | not started |
@@ -24,6 +24,7 @@ decision, it does not ship.
 
 ```
 packages/genetics    pure simulation — zero runtime dependencies, headless
+packages/rendering   genotype to drawing data; SVG and silhouette serialisers
 ```
 
 `packages/genetics` is the product. It has no knowledge of rendering, saves, or
@@ -41,6 +42,7 @@ npm run typecheck
 npm run lint
 npm run check     # all three
 npm run sim       # breed three populations over 20 generations and report
+npm run gallery   # write out/gallery.html: a plate of 50 generated creatures
 ```
 
 `npm run sim` is the Phase 1 deliverable: it runs an open ranch, a closed ranch
@@ -63,5 +65,20 @@ coefficient of inbreeding from the pedigree, with a tuned penalty curve.
 Epigenetic inheritance bounded so genes always dominate outcome. And a Punnett
 predictor that reasons from what the player *knows*, returning honest ranges
 where their information runs out.
+
+## What the renderer covers
+
+Nine part slots — body, head, limbs, tail, dorsal ridge, crest, marking layer,
+palette, size — each driven by named loci. Parts are parametric generators, so
+continuous loci give continuous variation. The renderer reads a phenotype and
+never a genome, so the picture cannot leak information the player has not
+earned. Output is drawing data; an SVG serialiser and a silhouette rasteriser
+consume it, which makes §6.4's "identifiable in pure black at 32x32" an
+executable test rather than a note — it measures coverage, connectivity, spread
+and distinctness, and it has already caught two real rig bugs.
+
+Colourblind modes remap the species' hue arc onto an axis each vision type
+retains, preserving ordering, and every marking carries a hatch texture so
+colour is never the only channel.
 
 See `DECISIONS.md` for why each of those works the way it does.

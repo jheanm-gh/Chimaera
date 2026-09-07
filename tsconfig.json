@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/genetics" }]
+  "references": [
+    { "path": "./packages/genetics" },
+    { "path": "./packages/genetics/tsconfig.spec.json" },
+    { "path": "./packages/rendering" },
+    { "path": "./packages/rendering/tsconfig.spec.json" }
+  ]
 }
