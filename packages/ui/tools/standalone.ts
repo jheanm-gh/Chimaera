@@ -79,6 +79,18 @@ function assetNamed(assets: readonly string[], describe: string, match: (file: s
 }
 
 /**
+ * Every worker chunk, keyed by the filename the app refers to it by.
+ *
+ * There is more than one now — the evaluator and the sprite renderer — and the
+ * first version of this tool assumed a single worker and failed loudly the day
+ * a second arrived. That is the failure working: an inlined bundle missing a
+ * worker would have been a page whose creatures never appeared.
+ */
+function workerChunks(assets: readonly string[]): readonly string[] {
+  return assets.filter((f) => f.endsWith(".js") && f.includes("worker"));
+}
+
+/**
  * The extent of a `new Worker(...)` call that mentions `needle`.
  *
  * Walks from the opening parenthesis counting depth, so however many `new URL`
@@ -114,23 +126,26 @@ function jsLiteral(source: string): string {
 function build(): void {
   const assets = readdirSync(join(DIST, "assets"));
   const cssFile = assetNamed(assets, "stylesheet", (f) => f.endsWith(".css"));
-  const workerFile = assetNamed(assets, "worker chunk", (f) => f.endsWith(".js") && f.includes("worker"));
+  const workerFiles = workerChunks(assets);
   const appFile = assetNamed(assets, "app bundle", (f) => f.endsWith(".js") && !f.includes("worker"));
+  if (workerFiles.length === 0) throw new Error("no worker chunk in dist/assets — the build shape changed");
 
   const css = readFileSync(join(DIST, "assets", cssFile), "utf8");
-  const worker = readFileSync(join(DIST, "assets", workerFile), "utf8");
+  const workers = workerFiles.map((file) => ({ file, source: readFileSync(join(DIST, "assets", file), "utf8") }));
   const html = readFileSync(join(DIST, "index.html"), "utf8");
   let app = readFileSync(join(DIST, "assets", appFile), "utf8");
 
   // Vite compiles `new Worker(new URL(...), {type:"module"})` into a reference
-  // to a sibling file, nested a few levels deep. Point it at a blob of the
+  // to a sibling file, nested a few levels deep. Point each at a blob of the
   // source we are about to inline. Scanned rather than matched: balancing
   // parentheses is not a job for a regular expression.
-  const call = balancedCall(app, "new Worker(", workerFile);
-  if (!call) {
-    throw new Error("could not find the worker construction — the bundle shape changed, so this tool needs revisiting");
+  for (const { file } of workers) {
+    const call = balancedCall(app, "new Worker(", file);
+    if (!call) {
+      throw new Error(`could not find the construction for ${file} — the bundle shape changed, so this tool needs revisiting`);
+    }
+    app = app.slice(0, call.start) + `new Worker(window.__verdanceWorkerUrl(${JSON.stringify(file)}))` + app.slice(call.end);
   }
-  app = app.slice(0, call.start) + "new Worker(window.__verdanceWorkerUrl())" + app.slice(call.end);
   if (/import\.meta\.url/.test(app)) {
     throw new Error("an import.meta.url survived inlining — something still wants a sibling file");
   }
@@ -146,10 +161,15 @@ function build(): void {
     '<div id="root"></div>',
     `<script>${DOWNLOAD_BRIDGE}<\/script>`,
     "<script>",
-    "// The expedition worker, inlined. It is a standalone IIFE, so it runs as a",
-    "// classic worker and asks nothing of the viewer's module support.",
-    "window.__verdanceWorkerUrl = function () {",
-    `  return URL.createObjectURL(new Blob([${jsLiteral(worker)}], { type: "text/javascript" }));`,
+    "// The workers, inlined. Each is a standalone IIFE, so they run as classic",
+    "// workers and ask nothing of the viewer's module support.",
+    "window.__verdanceWorkerSource = {",
+    ...workers.map(({ file, source }) => `  ${JSON.stringify(file)}: ${jsLiteral(source)},`),
+    "};",
+    "window.__verdanceWorkerUrl = function (name) {",
+    "  var source = window.__verdanceWorkerSource[name];",
+    "  if (!source) throw new Error('no inlined worker named ' + name);",
+    "  return URL.createObjectURL(new Blob([source], { type: \"text/javascript\" }));",
     "};",
     "<\/script>",
     `<script type="module">\n${app}\n<\/script>`,
@@ -160,7 +180,10 @@ function build(): void {
   writeFileSync(OUT, page);
   const kb = (value: string): string => `${Math.round(value.length / 1024)} KB`;
   console.log(`Wrote ${OUT} (${kb(page)})`);
-  console.log(`  app ${kb(app)} · worker ${kb(worker)} · styles ${kb(css)} · ${fontLinks.length} font link(s)`);
+  console.log(
+    `  app ${kb(app)} · styles ${kb(css)} · ${fontLinks.length} font link(s) · ` +
+      `${workers.length} worker(s): ${workers.map(({ file, source }) => `${file.split("-")[0]} ${kb(source)}`).join(", ")}`,
+  );
 }
 
 build();

@@ -15,7 +15,7 @@ import type { GeneMap, Genome, LocusId, SpeciesId } from "@chimaera/genetics";
 import { expressPhenotype, geneMapById, rngFromState, sexOf } from "@chimaera/genetics";
 import { mapOf, homeMap, speciesForBiome } from "./bestiary.js";
 import type { CombatantSpec, Role } from "./combat.js";
-import { simulateBattle } from "./combat.js";
+import { maxHpOf, simulateBattle } from "./combat.js";
 import type { ExpeditionLoot, ExpeditionMember, ExpeditionState } from "./expedition.js";
 import {
   DAYS_PER_NODE,
@@ -119,7 +119,8 @@ export function runBout(
   const entry = leagueTier(tier);
   const { rng, cursor } = rollFor(state, `bout:${tier}`);
   const mine = (team as Creature[]).map((creature) => combatantFor(creature));
-  const theirs = wildOpponents(map, entry.difficulty, Math.max(1, mine.length), rng).specs;
+  const opposition = wildOpponents(map, entry.difficulty, Math.max(1, mine.length), rng);
+  const theirs = opposition.specs;
   const result = simulateBattle(mine, theirs, rng);
 
   const won = result.winner === 0;
@@ -148,7 +149,37 @@ export function runBout(
     inventory: grantLoot(state.inventory, { ...EMPTY_LOOT, motes: purse, fragments }),
   };
   const advanced = advance(afterBout, 1);
-  return { state: advanced.state, events: [...events, ...advanced.events] };
+  return {
+    state: advanced.state,
+    events: [...events, ...advanced.events],
+    playback: {
+      kind: "league",
+      title: entry.name,
+      winner: result.winner,
+      rounds: result.rounds,
+      actors: [
+        ...(team as Creature[]).map((creature, index) => ({
+          id: (mine[index] as CombatantSpec).id,
+          name: creature.name,
+          team: 0 as const,
+          species: creature.species,
+          genome: creature.genome,
+          maxHp: maxHpOf(mine[index] as CombatantSpec),
+          role: (mine[index] as CombatantSpec).role,
+        })),
+        ...theirs.map((spec, index) => ({
+          id: spec.id,
+          name: spec.name,
+          team: 1 as const,
+          species: map.species.id,
+          genome: opposition.genomes[index] as Genome,
+          maxHp: maxHpOf(spec),
+          role: spec.role,
+        })),
+      ],
+      log: result.log,
+    },
+  };
 }
 
 /**

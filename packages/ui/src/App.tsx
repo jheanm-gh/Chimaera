@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
 import { prewarm } from "./sprites.js";
+import { BattleScene } from "./components/BattleScene.js";
 import { useAudio } from "./audio/useAudio.js";
 import { AudioPanel } from "./components/AudioPanel.js";
 import { CompendiumView } from "./components/CompendiumView.js";
@@ -222,6 +223,17 @@ export function App() {
           {ranch.lastBlocked}
         </p>
       ) : null}
+
+      {ranch.playback ? (
+
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Battle">
+
+          <BattleScene playback={ranch.playback} onDone={ranch.clearPlayback} />
+
+        </div>
+
+      ) : null}
+
 
       {newStation ? (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="Start a new station">

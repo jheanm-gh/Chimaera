@@ -20,7 +20,7 @@ import type { EpigeneticMarks, Genome, LocusId, RngState, Sex, SpeciesId, StatId
 import type { CampaignState } from "./campaign.js";
 import type { StudOffer } from "./exchange.js";
 import type { TrialState } from "./trials.js";
-import type { Role, Stance } from "./combat.js";
+import type { BattleEvent, Role, Stance } from "./combat.js";
 import type { ExpeditionState } from "./expedition.js";
 
 export type CreatureId = string;
@@ -376,4 +376,35 @@ export type GameEvent =
 export interface ActionResult {
   readonly state: RanchState;
   readonly events: readonly GameEvent[];
+  /**
+   * A fight, as a script the screen can play.
+   *
+   * Deliberately *not* part of the state. The simulation is authoritative and
+   * already finished by the time this exists — the scene is a replay, not a
+   * second resolution — and a save is not the place for twenty seconds of
+   * timestamped strikes it will never read again.
+   */
+  readonly playback?: BattlePlayback | undefined;
+}
+
+/** One combatant in a replay: enough to draw it and to label its bar. */
+export interface BattleActor {
+  readonly id: string;
+  readonly name: string;
+  readonly team: 0 | 1;
+  readonly species: SpeciesId;
+  readonly genome: Genome;
+  readonly maxHp: number;
+  readonly role: Role;
+}
+
+export interface BattlePlayback {
+  readonly kind: "league" | "expedition" | "rival";
+  /** What the fight was for, shown above the sand. */
+  readonly title: string;
+  readonly winner: 0 | 1 | "draw";
+  readonly rounds: number;
+  readonly actors: readonly BattleActor[];
+  /** Timestamped script from the resolver. Spans roughly 20-30s (§3). */
+  readonly log: readonly BattleEvent[];
 }

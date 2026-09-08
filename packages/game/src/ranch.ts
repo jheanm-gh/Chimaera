@@ -402,6 +402,7 @@ function withCampaign(result: ActionResult): ActionResult {
   }
 
   return {
+    ...result,
     state: { ...result.state, campaign: outcome.campaign, inventory },
     events: [...result.events, ...outcome.events],
   };
@@ -430,6 +431,7 @@ function withDiscoveries(result: ActionResult): ActionResult {
   }
   if (!added) return result;
   return {
+    ...result,
     state: { ...result.state, compendium: { ...result.state.compendium, seenSpecies: [...seen].sort() } },
     events: result.events,
   };

@@ -12,6 +12,7 @@
 
 import { toRgba } from "@chimaera/rendering";
 import type { PaletteMode } from "@chimaera/rendering";
+import type { Genome, SpeciesId } from "@chimaera/genetics";
 import type { Creature } from "@chimaera/game";
 import type { SpriteJob, SpriteRequest, SpriteResponse, SpriteResult } from "./workers/sprite.worker.js";
 
@@ -99,14 +100,21 @@ export function getSprite(
       flip,
       ...(suppressDominanceAt?.length ? { suppressDominanceAt } : {}),
     });
-    if (!flushing) {
-      flushing = true;
-      // One batch per frame. Coalescing a scrolled-in row into a single message
-      // is most of the reason this is not just eight postMessage calls.
-      queueMicrotask(() => setTimeout(flush, 0));
-    }
+    schedule();
   }
   return undefined;
+}
+
+/**
+ * One batch per turn of the event loop.
+ *
+ * Coalescing a scrolled-in row into a single message is most of the reason this
+ * is not just eight postMessage calls.
+ */
+function schedule(): void {
+  if (flushing) return;
+  flushing = true;
+  queueMicrotask(() => setTimeout(flush, 0));
 }
 
 /**
@@ -118,6 +126,30 @@ export function getSprite(
  */
 export function prewarm(creatures: readonly Creature[], mode: PaletteMode): void {
   for (const creature of creatures) getSprite(creature, mode, false);
+}
+
+/**
+ * A sprite for something that is not in the herd.
+ *
+ * The animals across the sand are generated for the fight and never enter the
+ * ranch, so they have a genome and a species but no `Creature` to key on. The
+ * cache does not care — it only ever needed a key and a genome.
+ */
+export function getBattleSprite(
+  id: string,
+  species: SpeciesId,
+  genome: Genome,
+  flip: boolean,
+  mode: PaletteMode = "full",
+): Sprite | undefined {
+  const key = `battle:${id}|${mode}|${flip ? "L" : "R"}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  if (!pending.has(key)) {
+    pending.set(key, { key, species, genome, mode, flip });
+    schedule();
+  }
+  return undefined;
 }
 
 export function subscribe(listener: () => void): () => void {

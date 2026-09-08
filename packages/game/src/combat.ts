@@ -196,6 +196,17 @@ const STANCE_MODS: Readonly<Record<Stance, { dealt: number; taken: number; affin
   measure: { dealt: 1, taken: 1, affinity: 1.4 },
 };
 
+/**
+ * The health a combatant starts with.
+ *
+ * Exported because a battle *scene* has to draw the same bar the simulation is
+ * emptying. Derived here rather than copied there: two formulas for one number
+ * is a bar that disagrees with the fight it is showing.
+ */
+export function maxHpOf(spec: CombatantSpec): number {
+  return Math.round((36 + (spec.stats.vigour ?? 0) * 2.1) * ROLE_WEIGHTS[spec.role].hp);
+}
+
 function toFighter(spec: CombatantSpec, team: 0 | 1): Fighter {
   const weights = ROLE_WEIGHTS[spec.role];
   const speed = spec.stats.speed ?? 0;
@@ -203,7 +214,7 @@ function toFighter(spec: CombatantSpec, team: 0 | 1): Fighter {
   const focus = spec.stats.focus ?? 0;
   const genePower = speed * weights.speed + vigour * weights.vigour + focus * weights.focus;
   const attack = effectivePower(genePower, spec.equipment);
-  const maxHp = Math.round((36 + vigour * 2.1) * weights.hp);
+  const maxHp = maxHpOf(spec);
   const hp = spec.startingHp === undefined ? maxHp : Math.max(0, Math.min(maxHp, Math.round(spec.startingHp)));
   return {
     ...spec,

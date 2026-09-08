@@ -1051,6 +1051,46 @@ The PNG encoder stayed for anything leaving the page, but the browser never sees
 one: encoding a sprite and base64-ing it cost half again what drawing it did,
 and the browser only decoded it straight back to the bytes a canvas wanted.
 
+### D88. The fight is watched, not re-run
+
+A battle scene in a deterministic game has one honest shape: the simulation
+resolves, and the screen replays what it decided. `simulateBattle` already
+emitted a timestamped script — §3 asked for one, spanning twenty to thirty
+seconds — and until now the UI threw it away and printed the summary.
+
+So `ActionResult` gained a `playback` field carrying that script plus enough to
+draw it: both teams, their genomes, and each bar's maximum. Deliberately *not*
+state. The fight is over by the time this exists, and a save is not the place
+for twenty seconds of timestamped strikes it will never read again.
+
+Nothing on the canvas can change who won. That is the point, and it is also why
+the player can skip it — a replay you are forced to sit through is a loading
+screen with a story.
+
+The bar's maximum comes from `maxHpOf`, exported from the resolver rather than
+copied into the scene. Two formulas for one number is a bar that disagrees with
+the fight it is showing.
+
+### D89. The scene is one canvas on one pixel grid
+
+Everything — ground, platforms, creatures, bars, damage numbers — is drawn to a
+single 320x180 canvas and scaled up whole with nearest-neighbour. Compositing
+sprites onto CSS-positioned divs would have put the animals on a different pixel
+grid from the arena they stand in, and made them the one blurred thing on
+screen.
+
+Layout is the arrangement every game in this idiom has used since 1996, because
+it reads without being learned: near team low and left and larger, far team high
+and right and smaller, and each side's health boxes across the diagonal from its
+own animals so neither ever covers the other. The first cut had them on the same
+side, which put a bar over the creature it described.
+
+Animation is per-actor and derived from the script rather than authored: a lunge
+from the most recent strike *by* an actor, a recoil and a two-frame white flash
+from the most recent strike *on* it, and a sink-and-fade on a down. An affinity
+hit gets its own colour and the words "well matched", because that is the
+genetic lever paying off and it should be visible that it did.
+
 ---
 
 ## Open arguments with the brief

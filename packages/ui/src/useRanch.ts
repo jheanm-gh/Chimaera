@@ -7,7 +7,7 @@
  */
 
 import { applyAction, createRanch, homeMap } from "@chimaera/game";
-import type { Action, GameEvent, RanchState } from "@chimaera/game";
+import type { Action, BattlePlayback, GameEvent, RanchState } from "@chimaera/game";
 import type { SpeciesId } from "@chimaera/genetics";
 import { STARTER_TRIO } from "@chimaera/genetics";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -38,6 +38,9 @@ export interface RanchController {
   readonly map: ReturnType<typeof homeMap>;
   readonly journal: readonly JournalEntry[];
   readonly ready: boolean;
+  /** The last fight, as a script to play. Cleared when the player dismisses it. */
+  readonly playback: BattlePlayback | undefined;
+  readonly clearPlayback: () => void;
   readonly lastBlocked: string | undefined;
   dispatch(action: Action): readonly GameEvent[];
   replace(state: RanchState): void;
@@ -106,6 +109,10 @@ export function useRanch(): RanchController {
         const result = applyAction(current, action);
         events = result.events;
         record(result.events, result.state.day);
+        // A fight comes back with a script for the screen to play. It is not
+        // state — the simulation already decided — so it lives beside the
+        // ranch and is cleared when the player is done watching.
+        if (result.playback) setPlayback(result.playback);
         return result.state;
       };
       // Whichever ranch is on screen is the one the action lands on. A trial is
@@ -116,6 +123,8 @@ export function useRanch(): RanchController {
     },
     [record],
   );
+
+  const [playback, setPlayback] = useState<BattlePlayback | undefined>(undefined);
 
   // The dispatcher reads this synchronously, so it must not be state.
   const sideRef = useRef<RanchState | undefined>(undefined);
@@ -154,6 +163,8 @@ export function useRanch(): RanchController {
     closeSide: useCallback(() => setSide(undefined), []),
     reset,
     clearBlocked: useCallback(() => setLastBlocked(undefined), []),
+    playback,
+    clearPlayback: useCallback(() => setPlayback(undefined), []),
   };
 }
 
