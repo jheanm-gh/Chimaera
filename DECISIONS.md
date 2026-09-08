@@ -941,6 +941,32 @@ same herd loaded logs none either. Scroll steps run 18ms median, 30ms worst;
 forty arrow-key moves cost 674ms; selecting a card — which expresses a phenotype,
 draws it and voices it — costs 21ms.
 
+### D83. One file, and a seam where the host does the saving
+
+`npm run build:standalone` folds the build into a single HTML file: styles and
+app inlined, and the expedition worker handed to a classic `Worker` as a blob,
+which works because that chunk compiles to a closed IIFE with no imports. It
+runs from a file:// URL, a static host, or a page sandbox — no server, no
+sibling assets.
+
+The worker reference is found by scanning for a balanced `new Worker(...)`
+rather than by matching a pattern: Vite nests it a few `new URL` layers deep,
+and parentheses are not a job for a regular expression. If the bundle shape ever
+changes the tool fails loudly instead of shipping a page whose expeditions
+quietly never return.
+
+Export and the lineage certificate needed a seam. Both built a Blob and clicked
+a detached anchor, and a hardened sandbox does not refuse that — it silently
+does nothing, which is the worst way for an Export button to behave.
+`src/download.ts` now looks for a `window.__verdanceSaveFile` bridge before
+falling back to the anchor, and the standalone tool installs one for hosts that
+mediate saves themselves. The game learns nothing about any particular host; it
+only knows there might be a bridge.
+
+`npm run typecheck` now also runs the UI's own config. It was outside `tsc -b`
+— the app is not a composite project — so a type error in the React code could
+only be caught by remembering to check it by hand, which is not a gate.
+
 ---
 
 ## Open arguments with the brief

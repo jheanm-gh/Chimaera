@@ -9,6 +9,7 @@
  */
 
 import { fromJson, suggestedFilename, toJson } from "@chimaera/game";
+import { saveFile } from "./download.js";
 import type { RanchState } from "@chimaera/game";
 
 const DB_NAME = "chimaera";
@@ -65,13 +66,7 @@ export async function listSlots(): Promise<string[]> {
 
 /** Download the ranch as a file the player can keep, move and re-import. */
 export function exportToFile(state: RanchState): void {
-  const blob = new Blob([toJson(state)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = suggestedFilename(state);
-  link.click();
-  URL.revokeObjectURL(url);
+  saveFile(suggestedFilename(state), new Blob([toJson(state)], { type: "application/json" }));
 }
 
 export async function importFromFile(file: File): Promise<RanchState> {

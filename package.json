@@ -3,20 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Verdance — a genetics-first creature breeding game.",
+  "description": "Verdance \u2014 a genetics-first creature breeding game.",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc --noEmit -p packages/ui/tsconfig.json",
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm run test",
     "sim": "tsx packages/genetics/tools/simulate.ts",
     "gallery": "tsc -b && tsx packages/rendering/tools/gallery.ts",
     "dev": "npm run dev --workspace @chimaera/ui",
-    "build:app": "npm run build --workspace @chimaera/ui"
+    "build:app": "npm run build --workspace @chimaera/ui",
+    "build:standalone": "npm run build:app && tsx packages/ui/tools/standalone.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

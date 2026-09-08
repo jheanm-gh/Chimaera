@@ -22,6 +22,7 @@ import { lineageCertificate, renderCreature } from "@chimaera/rendering";
 import { genotypeAt } from "@chimaera/genetics";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useState } from "react";
+import { saveFile } from "../download.js";
 import type { RanchController } from "../useRanch.js";
 
 import { CreatureFigure } from "./CreatureFigure.js";
@@ -40,13 +41,7 @@ function downloadCertificate(ranch: RanchController, creature: Creature): void {
     ...data,
     drawing: renderCreature(phenotypeOf(creature), mapOf(creature)),
   });
-  const blob = new Blob([svg], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = certificateFilename(data);
-  link.click();
-  URL.revokeObjectURL(url);
+  saveFile(certificateFilename(data), new Blob([svg], { type: "image/svg+xml" }));
 }
 import { StatBar } from "./StatBar.js";
 
