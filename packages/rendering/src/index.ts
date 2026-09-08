@@ -13,3 +13,5 @@ export * from "./svg.js";
 export * from "./silhouette.js";
 export * from "./rig/plan.js";
 export * from "./rig/plans.js";
+export * from "./qr.js";
+export * from "./certificate.js";

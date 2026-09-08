@@ -10,8 +10,8 @@
  * the save format and the genome format can move independently.
  */
 
-import { deserialiseGenome, serialiseGenome } from "@chimaera/genetics";
-import type { SerialisedGenome } from "@chimaera/genetics";
+import { deserialiseGenome, geneMapById, serialiseGenome, SPECIES } from "@chimaera/genetics";
+import type { SerialisedGenome, SpeciesId } from "@chimaera/genetics";
 import { speciesForBiome } from "./bestiary.js";
 import { NEW_CAMPAIGN } from "./campaign.js";
 import { SAVE_VERSION } from "./ranch.js";
@@ -97,7 +97,61 @@ const MIGRATIONS: readonly ((file: SaveFile) => SaveFile)[] = [
   // v3 -> v4: the modes arrived and needed somewhere to keep their results. A
   // v3 ranch has played none of them, which is what an empty record set means.
   (file) => ({ ...file, state: { ...file.state, records: NO_RECORDS } }),
-  // v4 -> v5 goes here.
+  // v4 -> v5: recorded alleles gained a species prefix. A bare id from an older
+  // save could have come from any species that has that allele, so credit the
+  // ones the player has actually met — generous where it is ambiguous, and
+  // never crediting a species they have never seen.
+  (file) => {
+    const state = file.state as unknown as {
+      seenSpecies?: unknown;
+      compendium?: {
+        seenSpecies?: string[];
+        seenAlleles?: string[];
+        seenEpistasis?: string[];
+        namedAlleles?: Record<string, unknown>;
+      };
+    };
+    const compendium = state.compendium;
+    if (!compendium) return file;
+    const met = (compendium.seenSpecies ?? []) as SpeciesId[];
+    const qualify = (id: string): string[] => {
+      if (id.includes(":")) return [id];
+      const owners = met.filter((species) =>
+        SPECIES.some(
+          (entry) =>
+            entry.id === species &&
+            geneMapById(species).loci.some((locus) => locus.alleles.some((allele) => allele.id === id)),
+        ),
+      );
+      return owners.length > 0 ? owners.map((species) => `${species}:${id}`) : [id];
+    };
+    const seenAlleles = [...new Set((compendium.seenAlleles ?? []).flatMap(qualify))].sort();
+    const seenEpistasis = [
+      ...new Set(
+        ((compendium.seenEpistasis ?? []) as string[]).flatMap((id) =>
+          id.includes(":")
+            ? [id]
+            : met
+                .filter((species) =>
+                  SPECIES.some((entry) => entry.id === species && entry.epistasis.some((rule) => rule.id === id)),
+                )
+                .map((species) => `${species}:${id}`),
+        ),
+      ),
+    ].sort();
+    const namedAlleles: Record<string, unknown> = {};
+    for (const [id, value] of Object.entries(compendium.namedAlleles ?? {})) {
+      for (const key of qualify(id)) namedAlleles[key] = value;
+    }
+    return {
+      ...file,
+      state: {
+        ...file.state,
+        compendium: { ...file.state.compendium, seenAlleles, seenEpistasis, namedAlleles },
+      } as unknown as SerialisedRanch,
+    };
+  },
+  // v5 -> v6 goes here.
 ];
 
 function migrate(file: SaveFile): SaveFile {

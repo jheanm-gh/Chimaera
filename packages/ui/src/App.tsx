@@ -4,6 +4,7 @@ import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
+import { CompendiumView } from "./components/CompendiumView.js";
 import { ModesView } from "./components/ModesView.js";
 import { NewStation } from "./components/NewStation.js";
 import { CreaturePanel } from "./components/CreaturePanel.js";
@@ -20,6 +21,7 @@ type Tab =
   | "field"
   | "commission"
   | "modes"
+  | "compendium"
   | "pedigree"
   | "archive"
   | "journal";
@@ -30,6 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "field", label: "Field" },
   { id: "commission", label: "Commission" },
   { id: "modes", label: "Modes" },
+  { id: "compendium", label: "Compendium" },
   { id: "pedigree", label: "Pedigree" },
   { id: "archive", label: "Archive" },
   { id: "journal", label: "Journal" },
@@ -236,6 +239,8 @@ export function App() {
         {tab === "commission" ? <CommissionView ranch={ranch} /> : null}
 
         {tab === "modes" ? <ModesView ranch={ranch} /> : null}
+
+        {tab === "compendium" ? <CompendiumView ranch={ranch} /> : null}
 
         {tab === "pedigree" ? (
           <PedigreeView state={ranch.state} rootId={selected?.id} onSelect={setSelectedId} />

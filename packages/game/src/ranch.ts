@@ -46,6 +46,7 @@ import {
 } from "./lifecycle.js";
 import { enterExpedition, expeditionMove, expeditionWithdraw, runBout } from "./runs.js";
 import { enterShow } from "./shows.js";
+import { alleleKey, gateKey, nameAllele } from "./compendium.js";
 import { readStud } from "./exchange.js";
 import type { StudOffer } from "./exchange.js";
 import { trialGenomes } from "./trials.js";
@@ -63,10 +64,11 @@ import type {
 /**
  * v2 added `campaign`; v3 added `homeSpecies` and named the species living in
  * an expedition's region; v4 added `records`, where the §4 modes keep their
- * results. The migrations in `save.ts` fill each in, which is the whole reason
- * the chain was written before there was anything to migrate.
+ * results; v5 qualified recorded alleles by species. The migrations in
+ * `save.ts` fill each in, which is the whole reason the chain was written
+ * before there was anything to migrate.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** Day costs, so that every meaningful action moves the calendar (§2.1). */
 export const DAY_COST = { breed: 1, tend: 1, catchWild: 3 } as const;
@@ -405,7 +407,31 @@ function withCampaign(result: ActionResult): ActionResult {
 }
 
 export function applyAction(state: RanchState, action: Action): ActionResult {
-  return withCampaign(dispatch(state, action));
+  return withCampaign(withDiscoveries(dispatch(state, action)));
+}
+
+/**
+ * Keeps the Compendium honest about what is standing in the pens.
+ *
+ * Creatures arrive by half a dozen routes — hatching, catching, an expedition,
+ * a stud pairing, a Legacy carry — and requiring each one to remember to record
+ * the species is how a Compendium ends up disagreeing with the ranch. Sweeping
+ * once, centrally, cannot be forgotten.
+ */
+function withDiscoveries(result: ActionResult): ActionResult {
+  const seen = new Set(result.state.compendium.seenSpecies);
+  let added = false;
+  for (const creature of [...result.state.creatures, ...result.state.archive]) {
+    if (!seen.has(creature.species)) {
+      seen.add(creature.species);
+      added = true;
+    }
+  }
+  if (!added) return result;
+  return {
+    state: { ...result.state, compendium: { ...result.state.compendium, seenSpecies: [...seen].sort() } },
+    events: result.events,
+  };
 }
 
 function dispatch(state: RanchState, action: Action): ActionResult {
@@ -452,6 +478,21 @@ function dispatch(state: RanchState, action: Action): ActionResult {
       return expeditionWithdraw(state, advance);
     case "enterShow":
       return enterShow(state, action.id, action.tier, phenotypeOf);
+    case "nameAllele": {
+      const named = nameAllele(state, action.allele, action.name);
+      return named.error
+        ? blocked(state, named.error)
+        : {
+            state: named.state,
+            events: [
+              {
+                kind: "discovery",
+                what: "Named",
+                detail: `${action.allele} will be known as "${named.state.compendium.namedAlleles[action.allele]?.name}" from now on.`,
+              },
+            ],
+          };
+    }
   }
 }
 
@@ -824,9 +865,9 @@ function performBreeding(
           detail: `${allele.name} at ${map.locus(mutation.locus).name} — no wild population carries this.`,
         });
       }
-      compendium = recordAllele(compendium, mutation.to);
+      compendium = recordAllele(compendium, map.species.id, mutation.to);
     }
-    compendium = recordEpistasis(compendium, phenotype.epistasisActive);
+    compendium = recordEpistasisFor(compendium, map.species.id, phenotype.epistasisActive);
   }
 
   const afterBreed: RanchState = {
@@ -1063,7 +1104,7 @@ function doCatchWild(state: RanchState, species?: SpeciesId): ActionResult {
     pedigree: [...state.pedigree, { id, name: creature.name, generation: 0 }],
     nextId: state.nextId + 1,
     rngCursor: cursor,
-    compendium: recordEpistasis(state.compendium, phenotype.epistasisActive),
+    compendium: recordEpistasisFor(state.compendium, map.species.id, phenotype.epistasisActive),
   };
 
   const advanced = advance(caught, DAY_COST.catchWild);
@@ -1075,14 +1116,29 @@ function doCatchWild(state: RanchState, species?: SpeciesId): ActionResult {
 
 // --- Compendium ------------------------------------------------------------
 
-function recordAllele(compendium: RanchState["compendium"], allele: string): RanchState["compendium"] {
-  if (compendium.seenAlleles.includes(allele)) return compendium;
-  return { ...compendium, seenAlleles: [...compendium.seenAlleles, allele].sort() };
+function recordAllele(
+  compendium: RanchState["compendium"],
+  species: SpeciesId,
+  allele: string,
+): RanchState["compendium"] {
+  // Qualified by species: allele ids are unique within a gene map and not
+  // across them, so a bare id would credit six species for one discovery.
+  const key = alleleKey(species, allele);
+  if (compendium.seenAlleles.includes(key)) return compendium;
+  return { ...compendium, seenAlleles: [...compendium.seenAlleles, key].sort() };
 }
 
 function recordBranch(compendium: RanchState["compendium"], branch: string): RanchState["compendium"] {
   if (compendium.seenBranches.includes(branch)) return compendium;
   return { ...compendium, seenBranches: [...compendium.seenBranches, branch].sort() };
+}
+
+function recordEpistasisFor(
+  compendium: RanchState["compendium"],
+  species: SpeciesId,
+  active: readonly string[],
+): RanchState["compendium"] {
+  return recordEpistasis(compendium, active.map((rule) => gateKey(species, rule)));
 }
 
 function recordEpistasis(

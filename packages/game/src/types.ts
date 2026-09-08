@@ -317,6 +317,7 @@ export type Action =
   | { readonly kind: "expeditionMove"; readonly nodeId: string }
   | { readonly kind: "expeditionWithdraw" }
   | { readonly kind: "enterShow"; readonly id: CreatureId; readonly tier: number }
+  | { readonly kind: "nameAllele"; readonly allele: string; readonly name: string }
   | {
       readonly kind: "breedToStud";
       readonly damId: CreatureId;

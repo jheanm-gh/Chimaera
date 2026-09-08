@@ -211,3 +211,58 @@ function checksum(bytes: readonly number[]): number {
   }
   return hash >>> 0;
 }
+
+// ---------------------------------------------------------------------------
+// Signing (§8.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The build key.
+ *
+ * §8.1 asks for codes to be signed "to prevent trivial forgery", and trivial is
+ * the operative word. A key that ships inside the client is not a secret, and
+ * anyone willing to open the bundle can mint whatever they like — so this is
+ * tamper-*evident*, not tamper-proof. It stops the casual edit (nudging a stat,
+ * swapping an allele in a pasted offer) and it stops a code mangled in transit
+ * from being accepted, which is the whole of what an offline game can honestly
+ * claim. When there is a server and a leaderboard worth defending, the same
+ * call sites take a real signature without changing shape.
+ */
+const BUILD_KEY = "verdance/2026/stud-and-ghost";
+
+/**
+ * A short keyed tag over a payload.
+ *
+ * Two independent FNV-1a passes over key-prefixed and key-suffixed copies,
+ * mixed. It is not a MAC and does not claim to be one; it is a checksum an
+ * editor cannot recompute by eye.
+ */
+export function signPayload(payload: string): string {
+  const forward = fnv(`${BUILD_KEY}|${payload}`);
+  const backward = fnv(`${payload}|${BUILD_KEY}`);
+  const mixed = (forward ^ Math.imul(backward, 0x9e3779b1)) >>> 0;
+  let out = "";
+  for (let i = 0; i < 6; i++) out += ALPHABET[(mixed >>> (i * 5)) & 0x1f];
+  return out;
+}
+
+export function verifyPayload(payload: string, tag: string): boolean {
+  const expected = signPayload(payload);
+  if (tag.length !== expected.length) return false;
+  // Constant-time-ish: no early exit, so the comparison leaks nothing useful
+  // even though nothing here is worth attacking.
+  let difference = 0;
+  for (let i = 0; i < expected.length; i++) {
+    difference |= (expected.charCodeAt(i) ^ tag.charCodeAt(i)) & 0xff;
+  }
+  return difference === 0;
+}
+
+function fnv(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i) & 0xff;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}

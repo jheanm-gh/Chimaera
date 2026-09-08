@@ -619,3 +619,56 @@ select {
   .modes { grid-template-columns: 1fr; }
   .mode-rail { flex-direction: row; flex-wrap: wrap; }
 }
+
+/* --- the Compendium (§8.3) ----------------------------------------------- */
+
+.layout-compendium { overflow-y: auto; }
+.compendium { max-width: 92ch; margin: 0 auto; }
+
+.completion { margin: 16px 0 26px; }
+.completion-bar { height: 6px; background: rgba(220, 222, 212, 0.14); border-radius: 1px; }
+.completion-bar i { display: block; height: 100%; background: var(--good); border-radius: 1px; }
+/* The counts list also carries `mono`, so this must not match it — a class
+   selector would beat `.completion ul` and flatten the row into a column. */
+.completion > span.mono { display: block; margin-top: 7px; color: var(--pale); }
+.completion ul { list-style: none; display: flex; flex-wrap: wrap; gap: 18px; margin: 6px 0 0; padding: 0; color: var(--pale-dim); }
+
+.compendium-species { border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 22px; }
+.compendium-species h3 {
+  font-family: var(--font-display); font-size: 1.3em; font-weight: 500;
+  text-transform: none; letter-spacing: 0; color: #f0f2e8;
+  display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px;
+}
+.compendium-species h3 .mono { color: var(--pale-dim); font-size: 0.55em; letter-spacing: 0.16em; text-transform: uppercase; }
+.compendium-species.unseen { opacity: 0.55; }
+.compendium-species .hook { font-style: italic; color: var(--pale-dim); margin: 0 0 14px; }
+
+.compendium-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+.compendium-grid h4 {
+  font-family: var(--font-mono); font-size: 0.66em; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--pale-dim); margin: 0 0 8px; font-weight: 400;
+}
+.compendium-grid ul { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.compendium-grid li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--pale-dim); }
+.compendium-grid li.found { color: var(--pale); }
+.compendium-grid li .locus { color: var(--pale-dim); min-width: 9em; }
+.compendium-grid li em { font-size: 0.86em; color: var(--pale-dim); flex-basis: 100%; }
+.compendium-grid li em.problem { color: var(--bad); }
+
+.compendium button.link {
+  color: var(--stamp);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--stamp);
+  font-size: 0.88em;
+  flex-basis: 100%;
+  text-align: left;
+  align-self: flex-start;
+  width: fit-content;
+}
+.compendium button.link:hover { background: transparent; color: #d6553a; border-bottom-color: #d6553a; }
+
+.naming { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex-basis: 100%; margin-top: 4px; }
+.naming input {
+  background: var(--board); border: 1px solid var(--rule); color: var(--pale);
+  font-family: var(--font-body); font-size: 0.95em; padding: 4px 7px; border-radius: 2px;
+}

@@ -17,12 +17,37 @@ import {
   STANCES,
 } from "@chimaera/game";
 import type { Creature, DietId, HabitatId, Role, Stance, TrainingId } from "@chimaera/game";
+import { certificateFilename, lineageData } from "@chimaera/game";
+import { lineageCertificate, renderCreature } from "@chimaera/rendering";
 import { genotypeAt } from "@chimaera/genetics";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useState } from "react";
 import type { RanchController } from "../useRanch.js";
 
 import { CreatureFigure } from "./CreatureFigure.js";
+
+/**
+ * Writes the certificate out as a file.
+ *
+ * One self-contained SVG: no fonts to fetch, no images to resolve, no script. A
+ * certificate has to survive being emailed, printed and opened in five years,
+ * and every external reference is one more way for it to arrive blank.
+ */
+function downloadCertificate(ranch: RanchController, creature: Creature): void {
+  const data = lineageData(ranch.state, creature.id, phenotypeOf);
+  if (!data) return;
+  const svg = lineageCertificate({
+    ...data,
+    drawing: renderCreature(phenotypeOf(creature), mapOf(creature)),
+  });
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = certificateFilename(data);
+  link.click();
+  URL.revokeObjectURL(url);
+}
 import { StatBar } from "./StatBar.js";
 
 interface Props {
@@ -371,6 +396,11 @@ export function CreaturePanel({ creature, ranch, mode, onSelectRelative }: Props
         ) : (
           <p className="parents">No recorded parents.</p>
         )}
+        <div className="row">
+          <button type="button" onClick={() => downloadCertificate(ranch, creature)}>
+            Lineage certificate
+          </button>
+        </div>
         <div className="row">
           <button type="button" onClick={() => ranch.dispatch({ kind: "archive", id: creature.id })}>
             Retire to the Archive

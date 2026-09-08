@@ -25,6 +25,8 @@ export * from "./codes.js";
 export * from "./rivals.js";
 export * from "./exchange.js";
 export * from "./legacy.js";
+export * from "./compendium.js";
+export * from "./certificate.js";
 export * from "./runs.js";
 export * from "./ranch.js";
 export * from "./save.js";

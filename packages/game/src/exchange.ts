@@ -20,7 +20,7 @@
 
 import { geneMapById, sexOf } from "@chimaera/genetics";
 import type { Genome, SpeciesId } from "@chimaera/genetics";
-import { decodeGenome, encodeGenome } from "./codes.js";
+import { decodeGenome, encodeGenome, signPayload, verifyPayload } from "./codes.js";
 import type { Creature, RanchState, StudRecord } from "./types.js";
 
 export const STUD_OFFER_VERSION = 1;
@@ -73,9 +73,12 @@ export function readStud(offer: StudOffer): { genome: Genome; species: SpeciesId
   return { genome: decoded.genome, species: decoded.species };
 }
 
-/** Serialised for pasting. One line, so it survives every chat window there is. */
+/**
+ * Serialised for pasting. One line, so it survives every chat window there is,
+ * and signed so a casual edit to the fee or the genome is visible.
+ */
 export function encodeOffer(offer: StudOffer): string {
-  return [
+  const body = [
     `stud${offer.version}`,
     offer.species,
     offer.fee,
@@ -84,10 +87,17 @@ export function encodeOffer(offer: StudOffer): string {
     offer.disclosed.join("."),
     offer.code,
   ].join(":");
+  return `${body}:${signPayload(body)}`;
 }
 
 export function decodeOffer(text: string): StudOffer {
-  const parts = text.trim().split(":");
+  const all = text.trim().split(":");
+  const tag = all.pop() ?? "";
+  const body = all.join(":");
+  if (!verifyPayload(body, tag)) {
+    throw new Error("That stud offer has been altered, or was copied wrong. It will not be honoured.");
+  }
+  const parts = all;
   if (parts.length !== 7 || !parts[0]?.startsWith("stud")) throw new Error("That is not a stud offer.");
   const version = Number(parts[0].slice(4));
   const fee = Number(parts[2]);
