@@ -969,6 +969,90 @@ only be caught by remembering to check it by hand, which is not a gate.
 
 ---
 
+## Phase 8 — Sprites
+
+### D84. The field journal was the wrong medium for a game
+
+§6 asked for a naturalist's field journal, and that is what shipped: smooth
+vector animals, ink on paper, a typeset specimen label. It is coherent and it
+photographs well and it is not a game. Played, it reads as a diagram of a
+creature rather than as a creature, and the player told us so.
+
+So the animals are sprites now — 96 by 96, the Gen-5 battle convention, drawn in
+a fifteen-colour ramp with hard edges and a lit surface. The reference is Spore
+rather than any Pokémon game: creatures visibly *assembled* from parts, because
+that is what this game's animals actually are.
+
+Nothing was licensed and nothing was hand-drawn. `pixel/sprite.ts` draws every
+creature procedurally from the same Phenotype the illustration renderer reads —
+which is what makes five hundred animals affordable, and what keeps the rule
+that the picture can never leak a genotype the player has not earned.
+
+The order of work is the reason it reads: lay down *material* (which substance
+is at each pixel), compute *light* once over the finished silhouette, then
+resolve *colour* from the pair. Shading after the whole animal exists is what
+makes the limbs, crown and trunk look like one creature lit from one direction
+instead of separate shapes that each brought their own gradient.
+
+### D85. What the first draft got wrong
+
+Worth recording, because each of these looked fine in code and terrible on
+screen:
+
+**Thin features came out as dark pipes.** A stalk or a whip tail is *entirely*
+edge, so every pixel of it landed in the shadow rungs. The fix measures how
+thick the feature is at each pixel — the deepest point nearby, not the depth
+here — and lights a slender thing like a slender thing.
+
+**Bipeds got one centred leg**, because a single limb pair was drawn as a single
+strut. Every upright species had a pogo stick.
+
+**The eye was one pixel.** Adding a real eye — sclera, pupil, catchlight — and a
+mouth line did more for the whole roster than every other change combined. It is
+the difference between a shape and a creature, and Spore's animals are legible
+for exactly this reason.
+
+**A second limb pair on an upright animal is arms, not more legs.** Drawn as
+legs, the two upright species sat 3.3% apart at icon size — which is not two
+species, it is one recolour. The Ashen Lorric's own design note says
+"long-limbed, with hands too big for it", and drawing that is what separated
+them.
+
+**Markings ran down the legs** and bottomed out near black, so a striped animal
+was a deckchair and a spotted one looked shot through with holes.
+
+### D86. The silhouette test survives the change of medium
+
+§6.4's rule — six species, pure black, 32 by 32, and it is the measurement that
+decides, not the author — is ported rather than retired, at the same 10% floor.
+It immediately failed three times and each failure was real: Sallowfinch against
+Ashen Lorric (fixed by arms), Kite-Ossel against Silt-Adder (the glider's legs
+are the whole difference between it and a snake, so they keep their reach), and
+Quillfen against Kite-Ossel (the fen animal is low-slung, so the glider stands
+tall). A second, harsher test asks whether any single genotype collapses one
+species onto another — a wingless glider, a limbless biped — which the
+representative comparison cannot see.
+
+### D87. The main thread never draws a creature
+
+Drawing one costs about a millisecond and a half. That is nothing once, and it
+is a dropped frame when a scroll step reveals eight cards while React is
+reconciling them. Measured on the 500-creature herd, the first cut of the
+sprites produced **twelve long tasks** where the illustration renderer had none,
+and scroll steps went from 18ms to 64ms.
+
+Micro-optimising bought back only a fifth of it — the single-pass painter and an
+inlined distance transform — so the work moved off the thread entirely.
+`sprite.worker.ts` draws, `sprites.ts` caches and coalesces requests into one
+batch per frame, and the herd is drawn ahead of the player rather than in front
+of them. Back to **zero long tasks**, p50 24ms.
+
+The PNG encoder stayed for anything leaving the page, but the browser never sees
+one: encoding a sprite and base64-ing it cost half again what drawing it did,
+and the browser only decoded it straight back to the bytes a canvas wanted.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.

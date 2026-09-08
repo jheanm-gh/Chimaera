@@ -722,3 +722,43 @@ h1.brand-mark { margin: 0; font-size: 1.35em; line-height: 1.2; }
    the container tells a keyboard user that is where they are. */
 .virtual-viewport:focus-within { outline: 1px solid var(--rule); outline-offset: 2px; }
 main:focus { outline: none; }
+
+/* --- Sprites -------------------------------------------------------------
+   The creature is pixel art, so every scaling step has to be nearest
+   neighbour; a browser smoothing a 96-pixel sprite up to 280 turns it back
+   into the blurred illustration this replaced. */
+.sprite-figure {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.sprite-figure img {
+  image-rendering: pixelated;
+  display: block;
+  position: relative;
+}
+
+/* The ground shadow. It is what plants the animal instead of leaving it
+   floating in the middle of a card. */
+.sprite-shadow {
+  position: absolute;
+  bottom: 12%;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0) 70%);
+  pointer-events: none;
+}
+
+@keyframes sprite-bob {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-3px); }
+}
+
+.sprite-idle {
+  animation: sprite-bob 0.86s steps(2) infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite-idle { animation: none; }
+}

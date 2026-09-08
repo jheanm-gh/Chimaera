@@ -5,6 +5,7 @@ import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
+import { prewarm } from "./sprites.js";
 import { useAudio } from "./audio/useAudio.js";
 import { AudioPanel } from "./components/AudioPanel.js";
 import { CompendiumView } from "./components/CompendiumView.js";
@@ -64,6 +65,13 @@ export function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--text-scale", String(textScale));
   }, [textScale]);
+
+  // Draw the whole herd before anyone scrolls to it. Five hundred animals is
+  // under a second on a thread nothing else is using, and it means a scroll
+  // step never waits on a worker round trip.
+  useEffect(() => {
+    prewarm(creatures, mode);
+  }, [creatures, mode]);
 
   useEffect(() => {
     if (!newStation) return;
@@ -227,7 +235,7 @@ export function App() {
             <section className="herd" id="herd" aria-label="The herd">
               <VirtualGrid
                 items={creatures}
-                rowHeight={262}
+                rowHeight={248}
                 minColumnWidth={228}
                 gap={14}
                 label={`The herd, ${creatures.length} creatures. Arrow keys to move.`}
