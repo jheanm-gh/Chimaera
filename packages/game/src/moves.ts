@@ -121,7 +121,7 @@ export const MOVES: readonly Move[] = [
     name: "Beak Jab",
     flavour: "One stroke, aimed, and back out of reach before the answer arrives.",
     damage: "pierce",
-    requires: [{ kind: "armament", any: ["beak"] }],
+    requires: [{ kind: "armament", any: ["beak", "fangs"] }],
     power: [
       { measure: "armament", weight: 0.4 },
       { measure: "acuity", weight: 0.4 },
@@ -197,10 +197,10 @@ export const MOVES: readonly Move[] = [
     name: "Drop",
     flavour: "Stands up to its full height and stops holding itself there.",
     damage: "blunt",
-    requires: [{ kind: "atLeast", measure: "stature", value: 45 }],
+    requires: [{ kind: "atLeast", measure: "mass", value: 20 }],
     power: [
-      { measure: "stature", weight: 0.5 },
-      { measure: "mass", weight: 0.5 },
+      { measure: "mass", weight: 0.6 },
+      { measure: "length", weight: 0.4 },
     ],
     resistedBy: [
       { measure: "mass", weight: 0.4 },
@@ -217,13 +217,13 @@ export const MOVES: readonly Move[] = [
     name: "Bite",
     flavour: "Takes hold of something and declines to let go of it.",
     damage: "grip",
-    // Eight centimetres, not four. At four every animal on the roster qualified,
-    // which made Bite an abstract stat wearing a move's name. A gape a player
-    // has to breed for is a gate; a gape everything already has is not.
-    requires: [{ kind: "atLeast", measure: "gape", value: 8 }],
+    // Gated on the animal being big enough to have a jaw worth using. When the
+    // gate was loose every animal on the roster qualified, which made Bite an
+    // abstract stat wearing a move's name.
+    requires: [{ kind: "atLeast", measure: "mass", value: 10 }],
     power: [
-      { measure: "gape", weight: 0.55 },
-      { measure: "mass", weight: 0.45 },
+      { measure: "mass", weight: 0.6 },
+      { measure: "length", weight: 0.4 },
     ],
     resistedBy: [{ measure: "hide", weight: 1 }],
     scale: 1.05,
@@ -257,9 +257,8 @@ export const MOVES: readonly Move[] = [
     damage: "grip",
     requires: [{ kind: "atLeast", measure: "limbs", value: 4 }],
     power: [
-      { measure: "mass", weight: 0.45 },
-      { measure: "stature", weight: 0.3 },
-      { measure: "gape", weight: 0.25 },
+      { measure: "mass", weight: 0.55 },
+      { measure: "length", weight: 0.45 },
     ],
     resistedBy: [
       { measure: "mass", weight: 0.7 },
@@ -276,10 +275,10 @@ export const MOVES: readonly Move[] = [
     name: "Venom Spur",
     flavour: "A scratch, and then several seconds during which nothing seems wrong.",
     damage: "toxin",
-    requires: [{ kind: "atLeast", measure: "venom", value: 1 }],
+    requires: [{ kind: "armament", any: ["fangs"] }],
     power: [
-      { measure: "venom", weight: 0.75 },
-      { measure: "acuity", weight: 0.25 },
+      { measure: "armament", weight: 0.6 },
+      { measure: "acuity", weight: 0.4 },
     ],
     // A big animal simply has more blood to dilute it in.
     resistedBy: [{ measure: "mass", weight: 1 }],
@@ -294,10 +293,10 @@ export const MOVES: readonly Move[] = [
     name: "Startle",
     flavour: "Everything it has goes up at once and it becomes twice the animal.",
     damage: "display",
-    requires: [{ kind: "atLeast", measure: "display", value: 8 }],
+    requires: [{ kind: "armament", any: ["crest", "spines", "horn", "tusks"] }],
     power: [
-      { measure: "display", weight: 0.6 },
-      { measure: "stature", weight: 0.4 },
+      { measure: "armament", weight: 0.55 },
+      { measure: "mass", weight: 0.45 },
     ],
     resistedBy: [{ measure: "acuity", weight: 1 }],
     scale: 0.7,
@@ -309,10 +308,10 @@ export const MOVES: readonly Move[] = [
     name: "Dazzle",
     flavour: "Lights up. Whatever was about to happen does not.",
     damage: "display",
-    requires: [{ kind: "atLeast", measure: "display", value: 4 }],
+    requires: [{ kind: "atLeast", measure: "acuity", value: 55 }],
     power: [
-      { measure: "acuity", weight: 0.5 },
-      { measure: "display", weight: 0.5 },
+      { measure: "acuity", weight: 0.7 },
+      { measure: "stride", weight: 0.3 },
     ],
     resistedBy: [{ measure: "acuity", weight: 1 }],
     scale: 0.6,
@@ -326,10 +325,10 @@ export const MOVES: readonly Move[] = [
     name: "Break Away",
     flavour: "Opens the membrane and is briefly somewhere else.",
     damage: "display",
-    requires: [{ kind: "atLeast", measure: "span", value: 20 }],
+    requires: [{ kind: "atLeast", measure: "stride", value: 55 }],
     power: [
-      { measure: "span", weight: 0.6 },
-      { measure: "stride", weight: 0.4 },
+      { measure: "stride", weight: 0.7 },
+      { measure: "acuity", weight: 0.3 },
     ],
     resistedBy: [{ measure: "acuity", weight: 1 }],
     scale: 0.55,

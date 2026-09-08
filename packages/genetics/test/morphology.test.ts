@@ -12,9 +12,7 @@ import { createRng, expressPhenotype, geneMapById, randomWildGenome, SPECIES } f
 import { frameFor, measure, normaliseMeasure } from "../src/morphology.js";
 import type { MeasureId } from "../src/morphology.js";
 
-const NUMERIC: readonly MeasureId[] = [
-  "mass", "length", "stature", "limbs", "stride", "hide", "armament", "tail", "gape", "acuity", "venom", "span", "display",
-];
+const NUMERIC: readonly MeasureId[] = ["mass", "length", "limbs", "stride", "hide", "armament", "tail", "acuity"];
 
 function sample(species: string, count: number, seed = "morph") {
   const map = geneMapById(species as never);
@@ -87,7 +85,7 @@ describe("measuring a creature", () => {
     // spread is flat, its animals are recolours of one animal.
     for (const { id, name } of SPECIES) {
       const rows = sample(id, 200);
-      for (const key of ["mass", "stature", "stride"] as const) {
+      for (const key of ["mass", "length", "stride"] as const) {
         const values = rows.map((r) => r.m[key]);
         const low = Math.min(...values);
         const high = Math.max(...values);

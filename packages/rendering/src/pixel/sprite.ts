@@ -24,11 +24,13 @@ import { resolvePalette } from "../palette.js";
 import { phenotypeFingerprint } from "../render.js";
 import type { PaletteMode } from "../types.js";
 import { planFor } from "../rig/plans.js";
+import { measure } from "@chimaera/genetics";
+import type { ArmamentKind, HideKind, Morphology } from "@chimaera/genetics";
 import type { BodyPlan } from "../rig/plan.js";
-import { at, bounds, createBitmap, EMPTY, fillEllipse, fillTaper, fillTriangle, outline, put } from "./bitmap.js";
+import { at, bounds, createBitmap, EMPTY, fillEllipse, fillTaper, fillTriangle, put } from "./bitmap.js";
 import type { Bitmap } from "./bitmap.js";
-import { edgeDistance } from "./bitmap.js";
 import { RAMP_SIZE, SLOT, spriteRamp } from "./ramp.js";
+import { contour, dither, light, occlude } from "./shade.js";
 
 export const SPRITE = { width: 96, height: 96 } as const;
 
@@ -41,6 +43,7 @@ const MAT = {
   crown: 4,
   glow: 5,
   crownRib: 6,
+  keratin: 7,
 } as const;
 
 /** Which part a pixel belongs to, so a pose can sway it. */
@@ -104,7 +107,11 @@ function layoutFor(plan: BodyPlan, build: number, size: number, facing: number):
   // Everything that gets drawn, not just the trunk. A membrane sweeps back
   // behind the shoulder and a plume stands above the head; leaving either out
   // of the fit is how a wing ends up clipped by the edge of the paper.
-  const spanX = rxPlan * 2 + plan.headReach + plan.tailReach + (plan.crown === "membrane" ? plan.crownReach : 0);
+  // A membrane counts for half its reach. Fitting the frame to its full span
+  // shrank the animal underneath it to a quarter of the plate — a fish with a
+  // sail — because the sail is the longest thing on the species and is also the
+  // one part that can sit near the edge without being missed.
+  const spanX = rxPlan * 2 + plan.headReach + plan.tailReach + (plan.crown === "membrane" ? plan.crownReach * 0.5 : 0);
   const spanY =
     plan.posture === "upright"
       ? ryPlan * 2 + plan.headReach + plan.crownReach + plan.limbReach
@@ -216,7 +223,7 @@ function headAnchor(l: Layout): { x: number; y: number; r: number } {
   if (plan.posture === "serpentine") {
     // A viper's head is wider than the neck it sits on; at this scale, without
     // that flare the animal is a tube with an eye painted near one end.
-    return { x: cx + facing * (rx * 0.92), y: cy + Math.sin(2.1 * Math.PI - 0.5) * l.wave, r: thick * 0.82 };
+    return { x: cx + facing * (rx * 0.92), y: cy + Math.sin(2.1 * Math.PI - 0.5) * l.wave, r: thick * 1.25 };
   }
   return { x: cx + facing * (rx + reach * 0.36), y: cy - ryTop * 0.42 - plan.headLift * scale * 0.5, r: thick * 0.6 };
 }
@@ -257,7 +264,7 @@ function drawLimbs(p: Painter, l: Layout, kind: string): void {
   // difference between an animal and a bug is whether it has legs you can see.
   const thick =
     Math.max(2.2, plan.limbThickness * scale * (kind === "stub" ? 1.15 : kind === "long" ? 0.85 : 1)) *
-    (plan.posture === "spread" ? 1.3 : 1);
+    (plan.posture === "spread" ? 1.55 : 1);
   const upright = plan.posture === "upright";
   // A single pair is still two legs. Drawing it as one centred strut gave every
   // upright species a pogo stick.
@@ -333,6 +340,7 @@ function drawLimbs(p: Painter, l: Layout, kind: string): void {
 
 function drawTail(p: Painter, l: Layout, kind: string): void {
   const { plan, cx, cy, rx, ryTop, ryBottom, scale, facing } = l;
+  void ryTop;
   if (kind === "none" || kind === "absent" || plan.tailReach <= 0) return;
   const reach =
     plan.tailReach * scale * (kind === "stub" ? 0.42 : kind === "whip" ? 1.2 : 1) *
@@ -340,10 +348,20 @@ function drawTail(p: Painter, l: Layout, kind: string): void {
     // straight out of the hip and reads as a lance.
     (plan.posture === "upright" ? 0.55 : 1);
   const root = Math.max(2.4, plan.tailRoot * scale * 0.5);
-  const baseX = cx - facing * rx * 0.94;
-  const baseY = plan.posture === "upright" ? cy + ryBottom * 0.35 : cy - ryTop * 0.1;
+  // A serpent's tail is the far end of the same curve, so it starts where the
+  // coil starts and leaves along it. Rooted at the trunk's mid-height like a
+  // quadruped's, it came off the side of the coil as a horizontal spike.
+  const serpentine = plan.posture === "serpentine";
+  const baseX = cx - facing * rx * (serpentine ? 1 : 0.94);
+  const baseY = serpentine
+    ? cy + Math.sin(-0.5) * l.wave
+    : plan.posture === "upright"
+      ? cy + ryBottom * 0.35
+      : cy - ryTop * 0.1;
   const tipX = baseX - facing * reach;
-  const tipY = baseY - plan.tailLift * scale - (kind === "whip" ? reach * 0.34 : reach * 0.1);
+  const tipY = serpentine
+    ? baseY + reach * 0.42
+    : baseY - plan.tailLift * scale - (kind === "whip" ? reach * 0.34 : reach * 0.1);
   paint(
     p,
     (t, i) => {
@@ -367,6 +385,73 @@ function drawTail(p: Painter, l: Layout, kind: string): void {
     },
     MAT.body,
     PART.tail,
+  );
+}
+
+/**
+ * The thing on the front of the animal.
+ *
+ * Now that armament is one of the eight measurements, the sprite has to draw
+ * it: a stat the player cannot see is a stat with a physical name. Keratin gets
+ * its own material so a tusk reads as bone growing out of the animal rather
+ * than as more coat.
+ */
+function drawArmament(p: Painter, l: Layout, kind: ArmamentKind, reachCm: number): void {
+  if (kind === "none" || kind === "crest" || kind === "spines" || reachCm <= 0) return;
+  const head = headAnchor(l);
+  const { facing } = l;
+  // The measurement is in centimetres of animal; on the plate it is a fraction
+  // of the head, so a big weapon on a small head still fits the frame.
+  const reach = Math.min(head.r * 2.6, Math.max(2.5, head.r * 0.5 + reachCm * l.scale * 0.5));
+  const thick = Math.max(1.2, head.r * 0.26);
+
+  paint(
+    p,
+    (t, i) => {
+      switch (kind) {
+        case "tusks": {
+          // Two, from the jaw corner, sweeping forward and up. Drawn as a pair
+          // with the far one shorter so the head reads as having depth.
+          for (const [side, len] of [
+            [1, 1],
+            [0.55, 0.78],
+          ] as const) {
+            const rootX = head.x + facing * head.r * 0.7;
+            const rootY = head.y + head.r * (0.4 + (1 - side) * 0.2);
+            fillTaper(t, rootX, rootY, rootX + facing * reach * len * 0.8, rootY - reach * len * 0.55, thick * side, thick * 0.28, i);
+          }
+          break;
+        }
+        case "horn": {
+          // Short, thick, and off the brow. Thin and long it read as an aerial;
+          // rooted on the snout it read as a party hat. A horn is a wide base
+          // that tapers fast, and the base is what makes it look grown.
+          const rootX = head.x + facing * head.r * 0.28;
+          const rootY = head.y - head.r * 0.62;
+          const rise = Math.min(reach * 0.62, head.r * 1.5);
+          fillTaper(t, rootX, rootY, rootX + facing * rise * 0.5, rootY - rise, thick * 2.2, thick * 0.35, i);
+          break;
+        }
+        case "fangs": {
+          for (const offset of [0.55, 1.05] as const) {
+            const rootX = head.x + facing * head.r * offset;
+            fillTaper(t, rootX, head.y + head.r * 0.35, rootX + facing * reach * 0.12, head.y + head.r * 0.35 + reach * 0.55, thick * 0.6, thick * 0.2, i);
+          }
+          break;
+        }
+        case "beak": {
+          // A hard wedge over the snout, upper mandible only — the lower jaw is
+          // the animal's own coat and reads better left alone.
+          const tipX = head.x + facing * (head.r * 1.4 + reach * 0.5);
+          fillTriangle(t, head.x + facing * head.r * 0.5, head.y - head.r * 0.1, head.x + facing * head.r * 0.5, head.y + head.r * 0.42, tipX, head.y + head.r * 0.2, i);
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    MAT.keratin,
+    PART.head,
   );
 }
 
@@ -506,7 +591,16 @@ function drawBelly(p: Painter, l: Layout): void {
       if (p.part.pixels[y * p.part.width + x] !== PART.body) continue;
       const dy = (y - cy) / Math.max(1e-6, ryBottom);
       const dx = (x - cx - bias) / Math.max(1e-6, rx);
-      if (dy > 0.42 && dx * dx + dy * dy * 0.55 < 0.95) put(p.material, x, y, MAT.belly);
+      // A parabola, not a horizontal cut. Counter-shading follows the barrel of
+      // the animal — high under the ribs, dropping away at both ends — and a
+      // straight boundary put a grey rectangle across every flank.
+      const boundary = 0.26 + dx * dx * 0.52;
+      if (dy <= boundary) continue;
+      // Two rows of dither at the edge so the pale underside washes into the
+      // coat instead of stopping at a line. A checker is the whole technique.
+      const fade = (dy - boundary) * Math.max(1e-6, ryBottom);
+      if (fade < 2 && (x + y) % 2 === 0) continue;
+      put(p.material, x, y, MAT.belly);
     }
   }
 }
@@ -624,70 +718,162 @@ function drawMarkings(p: Painter, l: Layout, markings: string, rng: () => number
 }
 
 /**
- * Light, computed once over the finished silhouette.
+ * Which colour each material takes at each of the six light levels.
  *
- * The surface normal is taken from the gradient of the distance field, which for
- * a filled shape points inward from the nearest edge — so its negation is the
- * direction the surface faces. Lambert against a fixed key light gives the
- * value, and the depth term flattens the middle of the animal toward the base
- * tone so the ramp is spent on the edges where form actually reads.
+ * Materials do not share a ramp because they are not made of the same thing: a
+ * marking is pigment sitting *on* the coat and barely changes with the light,
+ * while keratin is a hard surface with a sharp specular and almost no midtone.
  */
-function lightLevels(material: Bitmap): Uint8Array {
-  const distance = edgeDistance(material);
-  const { width, height } = material;
-  const levels = new Uint8Array(width * height);
-  const lx = -0.52;
-  const ly = -0.86;
-  const d = (x: number, y: number): number => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return 0;
-    return distance[y * width + x] as number;
-  };
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x;
-      if (material.pixels[i] === MAT.none) continue;
-      const gx = d(x + 1, y) - d(x - 1, y);
-      const gy = d(x, y + 1) - d(x, y - 1);
-      const length = Math.hypot(gx, gy);
-      const lambert = length < 1e-6 ? 0 : (-gx / length) * lx + (-gy / length) * ly;
-      const here = distance[i] as number;
-      const depth = Math.min(1, here / 5);
-      const value = 0.5 + lambert * 0.5 * (1 - depth * 0.55);
-      let level = value > 0.8 ? 0 : value > 0.62 ? 1 : value > 0.42 ? 2 : value > 0.26 ? 3 : 4;
+const RAMPS: Readonly<Record<number, readonly number[]>> = {
+  [MAT.body]: [SLOT.specular, SLOT.highlight, SLOT.light, SLOT.base, SLOT.shade, SLOT.core],
+  // Deliberately refuses to go as dark as the coat. That is the whole point of
+  // counter-shading: the pale underside cancels the shadow the body casts on
+  // itself. Letting it follow the light into the core rungs put a dark patch
+  // under every animal, which is the opposite of what the marking is for.
+  [MAT.belly]: [SLOT.specular, SLOT.belly, SLOT.belly, SLOT.belly, SLOT.bellyShade, SLOT.bellyShade],
+  [MAT.marking]: [SLOT.marking, SLOT.marking, SLOT.marking, SLOT.marking, SLOT.markingDark, SLOT.markingDark],
+  [MAT.crown]: [
+    SLOT.specular,
+    SLOT.crownTissue,
+    SLOT.crownTissue,
+    SLOT.crownTissueDark,
+    SLOT.crownTissueDark,
+    SLOT.core,
+  ],
+  [MAT.crownRib]: [
+    SLOT.crownTissueDark,
+    SLOT.crownTissueDark,
+    SLOT.core,
+    SLOT.core,
+    SLOT.core,
+    SLOT.core,
+  ],
+  [MAT.keratin]: [SLOT.specular, SLOT.keratin, SLOT.keratin, SLOT.keratin, SLOT.keratinShade, SLOT.keratinShade],
+  [MAT.glow]: [SLOT.glow, SLOT.glow, SLOT.glow, SLOT.glow, SLOT.glow, SLOT.glow],
+};
 
-      // A stalk, a whip tail or a thin leg is *entirely* edge, so every pixel of
-      // it lands in the shadow rungs and the whole feature comes out as a dark
-      // pipe. Measuring how thick the feature is here — the deepest point
-      // nearby, not the depth at this pixel — lets a thin part be lit like the
-      // slender thing it is instead of like the rim of a fat one.
-      //
-      // Only asked where the answer can change anything. Two thirds of the
-      // animal is already in a light rung, and scanning a neighbourhood around
-      // every one of those pixels cost more than the rest of the renderer.
-      if (level >= 3 && here < 2.6) {
-        let thickness = here;
-        for (let ny = -2; ny <= 2 && thickness < 2.6; ny++) {
-          for (let nx = -2; nx <= 2; nx++) {
-            const nearby = d(x + nx, y + ny);
-            if (nearby > thickness) thickness = nearby;
-          }
-        }
-        if (thickness < 2.6) level = value > 0.5 ? 1 : 2;
-      }
-      levels[i] = level;
-    }
+/**
+ * How near each part is to the viewer.
+ *
+ * Only the ordering matters: it decides which side of a seam gets the occlusion
+ * shadow when two parts touch.
+ */
+function depthOf(part: number): number {
+  switch (part) {
+    case PART.crown:
+      return 0;
+    case PART.tail:
+      return 1;
+    case PART.body:
+      return 2;
+    case PART.head:
+      return 3;
+    case PART.limb:
+      return 4;
+    default:
+      return 2;
   }
-  return levels;
 }
 
-const RAMPS: Readonly<Record<number, readonly number[]>> = {
-  [MAT.body]: [SLOT.highlight, SLOT.light, SLOT.base, SLOT.shade, SLOT.core],
-  [MAT.belly]: [SLOT.highlight, SLOT.highlight, SLOT.belly, SLOT.belly, SLOT.shade],
-  [MAT.marking]: [SLOT.marking, SLOT.marking, SLOT.marking, SLOT.markingDark, SLOT.markingDark],
-  [MAT.crown]: [SLOT.crown, SLOT.crown, SLOT.crown, SLOT.crownDark, SLOT.crownDark],
-  [MAT.crownRib]: [SLOT.crownDark, SLOT.crownDark, SLOT.crownDark, SLOT.crownDark, SLOT.crownDark],
-  [MAT.glow]: [SLOT.glow, SLOT.glow, SLOT.glow, SLOT.glow, SLOT.glow],
-};
+/**
+ * Give the hide a material.
+ *
+ * Until this pass, plate, scale, fur and bare skin were the same flat colour —
+ * which meant the single most important defensive measurement in the game was
+ * invisible, and every animal read as moulded from one substance. It runs over
+ * the composed pixels rather than the material map, because it is decoration on
+ * a lit surface and must not disturb the lighting that put it there.
+ *
+ * Deterministic: no dice. The same animal textures the same way every time, or
+ * the sprite cache would hand back two different creatures for one genome.
+ */
+function texture(
+  sprite: Bitmap,
+  parts: Bitmap,
+  levels: Uint8Array,
+  kind: HideKind,
+  box: { x: number; y: number; width: number; height: number },
+): void {
+  // The trunk only. Running plate bands across the skull made the animal read
+  // as striped rather than segmented, and fur on a face reads as stubble.
+  const onBody = (x: number, y: number): boolean => at(parts, x, y) === PART.body;
+  const lit = (x: number, y: number): number => levels[y * sprite.width + x] as number;
+  const paintAt = (x: number, y: number, slot: number): void => {
+    if (!onBody(x, y)) return;
+    if (at(sprite, x, y) === EMPTY) return;
+    put(sprite, x, y, slot);
+  };
+
+  switch (kind) {
+    case "plated": {
+      // Bands across the barrel, each with a lit edge above it. Plate reads
+      // because light catches the lip of every segment.
+      for (let y = box.y + 3; y < box.y + box.height - 2; y += 5) {
+        for (let x = box.x; x < box.x + box.width; x++) {
+          if (!onBody(x, y)) continue;
+          paintAt(x, y, SLOT.shade);
+          if (lit(x, y) <= 3) paintAt(x, y - 1, SLOT.light);
+        }
+      }
+      break;
+    }
+    case "scaled": {
+      // An offset lattice — every other row shifted by half a cell, which is
+      // what makes a dot grid read as overlapping scales rather than as spots.
+      for (let y = box.y + 2; y < box.y + box.height - 1; y += 2) {
+        const stagger = ((y - box.y) / 2) % 2 === 0 ? 0 : 2;
+        for (let x = box.x + stagger; x < box.x + box.width; x += 4) {
+          if (lit(x, y) >= 5) continue;
+          paintAt(x, y, SLOT.midshade);
+        }
+      }
+      break;
+    }
+    case "furred": {
+      // Short strokes lying along the body, denser in shadow. Fur has no hard
+      // edges, so this deliberately never touches the contour.
+      for (let y = box.y + 2; y < box.y + box.height - 2; y += 3) {
+        for (let x = box.x + ((y * 3) % 4); x < box.x + box.width; x += 5) {
+          const level = lit(x, y);
+          if (level <= 1) continue;
+          paintAt(x, y, level >= 4 ? SLOT.core : SLOT.midshade);
+          paintAt(x, y + 1, level >= 4 ? SLOT.shade : SLOT.base);
+        }
+      }
+      break;
+    }
+    case "slimed": {
+      // Wet things have a hard specular and almost nothing else. A few blobs on
+      // the lit side, and the rest left smooth.
+      for (let y = box.y + 2; y < box.y + Math.round(box.height * 0.5); y += 3) {
+        for (let x = box.x + 2; x < box.x + box.width - 2; x += 7) {
+          if (lit(x, y) > 2) continue;
+          paintAt(x, y, SLOT.specular);
+          paintAt(x + 1, y, SLOT.specular);
+        }
+      }
+      break;
+    }
+    case "naked": {
+      // Bare skin has no grain, but it is not featureless: it takes a broad
+      // soft sheen across the top of the barrel, and it creases where it folds.
+      // Left genuinely blank it was the one hide that read as unfinished.
+      const sheen = box.y + Math.round(box.height * 0.28);
+      for (let x = box.x + 2; x < box.x + box.width - 2; x++) {
+        if (lit(x, sheen) <= 2) paintAt(x, sheen, SLOT.highlight);
+      }
+      for (let y = box.y + Math.round(box.height * 0.55); y < box.y + box.height - 2; y += 4) {
+        for (let x = box.x + 3; x < box.x + box.width - 3; x += 9) {
+          paintAt(x, y, SLOT.midshade);
+          paintAt(x + 1, y, SLOT.midshade);
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
 
 /**
  * Slide the drawn content into the middle of the frame, a pixel at a time.
@@ -731,6 +917,10 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
     : 0.5;
   const layout = layoutFor(plan, phenotype.values[plan.traits.build] ?? 0.5, size, facing);
 
+  // The same measurements combat reads. The sprite draws them, which is the
+  // only way "the stat block is the animal" is true rather than a slogan.
+  const body: Morphology = measure(phenotype, map);
+
   const painter: Painter = {
     material: createBitmap(SPRITE.width, SPRITE.height),
     part: createBitmap(SPRITE.width, SPRITE.height),
@@ -744,6 +934,7 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
   if (plan.posture === "serpentine") drawSerpent(painter, layout);
   else drawBody(painter, layout);
   drawHead(painter, layout);
+  drawArmament(painter, layout, body.armamentKind, body.armament);
   drawBelly(painter, layout);
   drawMarkings(painter, layout, trait(plan.traits.markings, "none"), () => rng.next());
 
@@ -752,7 +943,13 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
   // cannot blur a pixel, and it guarantees the outline has somewhere to go.
   const shift = recentre(painter);
 
-  const levels = lightLevels(painter.material);
+  const lit = light(painter.material, MAT.none);
+  const levels = lit.levels;
+  // Seams before colour: a leg drawn in the same coat as the flank behind it is
+  // invisible until the contact between them is darkened.
+  occlude(painter.part, levels, depthOf);
+  // Dither the band edges before any of it becomes colour.
+  dither(painter.material, levels, MAT.none);
   const palette = resolvePalette({
     coat: phenotype.colour,
     hueArc: map.species.palette.hue,
@@ -769,27 +966,49 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
   }
   const sprite: Bitmap = { width: SPRITE.width, height: SPRITE.height, pixels };
 
-  // The face goes on after shading. It must not be lit — a shaded eye reads as a
-  // smudge — and it is the single feature that decides whether the player sees a
-  // creature or a shape. Spore's animals are legible at a glance for exactly one
-  // reason, and it is the eye.
+  // The face goes on after shading. It must not be lit — a shaded eye reads as
+  // a smudge — and it is the single feature that decides whether the player
+  // sees a creature or a shape.
+  //
+  // Four marks, and each does a different job: a brow makes the animal *look*
+  // at something rather than merely have an eye; the sclera gives the pupil
+  // somewhere to sit; the catchlight stops it reading as a hole; the nostril
+  // and the mouth line turn the front of the head into a face.
   const head = headAnchor(layout);
-  const eyeX = Math.round(head.x + facing * head.r * 0.42) + shift.dx;
-  const eyeY = Math.round(head.y - head.r * 0.26) + shift.dy;
-  const eyeR = Math.max(1.6, head.r * 0.42);
-  // Sclera, pupil, catchlight: three rungs is the whole trick, and the
-  // catchlight is what stops it reading as a hole punched in the head.
-  fillEllipse(sprite, eyeX, eyeY, eyeR, eyeR, SLOT.eyeLight);
-  fillEllipse(sprite, eyeX + facing * eyeR * 0.24, eyeY + eyeR * 0.12, eyeR * 0.62, eyeR * 0.66, SLOT.eye);
-  put(sprite, Math.round(eyeX - facing * eyeR * 0.34), Math.round(eyeY - eyeR * 0.34), SLOT.eyeLight);
-  // A mouth line along the underside of the snout. Two or three pixels, but the
-  // head stops being a bean the moment it has one.
-  const mouthY = Math.round(head.y + head.r * 0.58) + shift.dy;
-  const mouthFrom = Math.round(head.x + facing * head.r * 0.3) + shift.dx;
-  for (let step = 0; step <= Math.max(2, Math.round(head.r)); step++) {
+  const hx = head.x + shift.dx;
+  const hy = head.y + shift.dy;
+  const eyeX = Math.round(hx + facing * head.r * 0.4);
+  const eyeY = Math.round(hy - head.r * 0.24);
+  const eyeR = Math.max(1.6, head.r * 0.36);
+
+  // Brow: one dark stroke above and slightly behind the eye. It is two or three
+  // pixels and it does more for the animal's character than anything else here.
+  for (let step = -1; step <= 2; step++) {
+    const bx = Math.round(eyeX - facing * step * 0.9);
+    const by = Math.round(eyeY - eyeR - 0.4 + Math.abs(step) * 0.35);
+    if (at(sprite, bx, by) !== EMPTY) put(sprite, bx, by, SLOT.outlineDark);
+  }
+
+  fillEllipse(sprite, eyeX, eyeY, eyeR, eyeR, SLOT.eyeWhite);
+  fillEllipse(sprite, eyeX + facing * eyeR * 0.26, eyeY + eyeR * 0.14, eyeR * 0.66, eyeR * 0.7, SLOT.eyeDark);
+  put(sprite, Math.round(eyeX - facing * eyeR * 0.36), Math.round(eyeY - eyeR * 0.36), SLOT.eyeWhite);
+
+  // Nostril: a single dark pixel near the tip of the snout.
+  const snoutX = Math.round(hx + facing * head.r * 1.5);
+  const snoutY = Math.round(hy + head.r * 0.16);
+  if (at(sprite, snoutX, snoutY) !== EMPTY) put(sprite, snoutX, snoutY, SLOT.outlineDark);
+
+  // Mouth: a line along the underside of the snout, with the corner turned down
+  // a pixel so the head stops being a bean.
+  const mouthY = Math.round(hy + head.r * 0.56);
+  const mouthFrom = Math.round(hx + facing * head.r * 0.22);
+  const mouthTo = Math.max(2, Math.round(head.r * 1.35));
+  for (let step = 0; step <= mouthTo; step++) {
     const mx = mouthFrom + facing * step;
-    if (at(sprite, mx, mouthY) !== EMPTY && at(sprite, mx, mouthY) !== SLOT.outline) {
-      put(sprite, mx, mouthY, SLOT.outline);
+    const my = mouthY + (step === mouthTo ? 1 : 0);
+    const current = at(sprite, mx, my);
+    if (current !== EMPTY && current !== SLOT.outlineDark && current !== SLOT.outlineLit) {
+      put(sprite, mx, my, SLOT.mouth);
     }
   }
 
@@ -805,7 +1024,11 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
     }
   }
 
-  outline(sprite, SLOT.outline);
+  const skin = bounds(painter.material);
+  if (skin) texture(sprite, painter.part, levels, body.hideKind, skin);
+
+  // Contour last, and coloured by what it wraps.
+  contour(sprite, levels, painter.material, SLOT.outlineDark, SLOT.outlineLit);
 
   const box = bounds(sprite);
   return {

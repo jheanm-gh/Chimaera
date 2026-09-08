@@ -25,7 +25,16 @@ import type { Phenotype, SpeciesId } from "./types.js";
 // ---------------------------------------------------------------------------
 
 export type HideKind = "naked" | "slimed" | "furred" | "scaled" | "plated";
-export type ArmamentKind = "none" | "spines" | "tusks" | "horn" | "beak";
+/**
+ * What the animal brings to a fight on the front of itself.
+ *
+ * `crest` and `fangs` are here rather than as measurements of their own because
+ * a display structure and a venom apparatus are both *the thing on the front of
+ * the animal* — they occupy the same slot as tusks, they are drawn in the same
+ * place, and giving each its own number bought nothing but another row in the
+ * stat block.
+ */
+export type ArmamentKind = "none" | "crest" | "spines" | "tusks" | "horn" | "beak" | "fangs";
 export type TailKind = "none" | "stub" | "fan" | "whip" | "forked";
 
 export interface Morphology {
@@ -33,8 +42,6 @@ export interface Morphology {
   readonly mass: number;
   /** Nose to tail tip, centimetres. Reach, and what a limbless animal has instead of limbs. */
   readonly length: number;
-  /** Shoulder height standing, centimetres. Leverage and vantage. */
-  readonly stature: number;
   /** Legs on the ground. Zero for a serpent, two for a biped, four for a quadruped. */
   readonly limbs: number;
   /** Stride, centimetres. How fast it closes, and how well it gets out of the way. */
@@ -48,19 +55,25 @@ export interface Morphology {
   /** Tail length, centimetres, and its shape. */
   readonly tail: number;
   readonly tailKind: TailKind;
-  /** Jaw gape, centimetres. What it can get its mouth around. */
-  readonly gape: number;
   /** Sight and hearing together, 0-100. Landing a strike, and seeing one coming. */
   readonly acuity: number;
-  /** Toxin strength, 0-100. Zero for almost every animal. */
-  readonly venom: number;
-  /** Gliding membrane span, centimetres. Zero unless the species has one. */
-  readonly span: number;
-  /** Display structure, centimetres. Crests, plumes, ruffs — what it threatens with. */
-  readonly display: number;
+  /**
+   * Shoulder height, centimetres.
+   *
+   * Not one of the eight: nothing in combat reads it. It is kept because the
+   * renderer needs somewhere to put a head, and because a stat block that
+   * printed it would be a ninth number the player has to learn for no benefit.
+   */
+  readonly stature: number;
 }
 
-export type MeasureId = "mass" | "length" | "stature" | "limbs" | "stride" | "hide" | "armament" | "tail" | "gape" | "acuity" | "venom" | "span" | "display";
+/**
+ * The eight.
+ *
+ * Every one gates at least one move, and every one has something the sprite
+ * draws. A measurement the player cannot see is a stat with a physical name.
+ */
+export type MeasureId = "mass" | "length" | "limbs" | "stride" | "hide" | "armament" | "tail" | "acuity";
 
 /**
  * Reference dimensions for a full-grown wild animal of each species.
@@ -88,10 +101,6 @@ interface SpeciesFrame {
   /** What the species points at things with, and its length as a fraction of stature. */
   readonly armamentKind: ArmamentKind;
   readonly armament: number;
-  /** Jaw gape as a fraction of stature. */
-  readonly gape: number;
-  /** Whether the species has a gliding membrane, as a fraction of length. */
-  readonly span: number;
   /**
    * The continuous value that drives this species' bulk.
    *
@@ -106,17 +115,17 @@ interface SpeciesFrame {
 
 const FRAMES: Readonly<Record<SpeciesId, SpeciesFrame>> = {
   // Long, low, deep-bodied, and built around a fan of gills it can also stab with.
-  quillfen: { mass: 34, length: 118, stature: 0.34, limbs: 4, hide: 5, hideKind: "scaled", armamentKind: "spines", armament: 0.42, gape: 0.3, span: 0, shape: "build" },
+  quillfen: { mass: 34, length: 118, stature: 0.34, limbs: 4, hide: 5, hideKind: "scaled", armamentKind: "spines", armament: 0.42, shape: "build" },
   // Light, upright, quick; a beak and almost nothing else.
-  sallowfinch: { mass: 6, length: 46, stature: 0.82, limbs: 2, hide: 2, hideKind: "furred", armamentKind: "beak", armament: 0.24, gape: 0.26, span: 0, shape: "build" },
+  sallowfinch: { mass: 6, length: 46, stature: 0.82, limbs: 2, hide: 2, hideKind: "furred", armamentKind: "beak", armament: 0.24, shape: "build" },
   // Heavy, armoured, and covered in the thing it fights with.
-  bramblehog: { mass: 62, length: 104, stature: 0.4, limbs: 4, hide: 11, hideKind: "plated", armamentKind: "spines", armament: 0.55, gape: 0.28, span: 0, shape: "spines" },
+  bramblehog: { mass: 62, length: 104, stature: 0.4, limbs: 4, hide: 11, hideKind: "plated", armamentKind: "spines", armament: 0.55, shape: "spines" },
   // Built to leave: a membrane, long legs, and no mass to speak of.
-  kiteossel: { mass: 11, length: 88, stature: 0.52, limbs: 4, hide: 3, hideKind: "naked", armamentKind: "beak", armament: 0.2, gape: 0.24, span: 0.95, shape: "span" },
+  kiteossel: { mass: 11, length: 88, stature: 0.52, limbs: 4, hide: 3, hideKind: "naked", armamentKind: "beak", armament: 0.2, shape: "span" },
   // No limbs, all length, and the only species that brings venom as standard.
-  siltadder: { mass: 9, length: 186, stature: 0.08, limbs: 0, hide: 4, hideKind: "slimed", armamentKind: "none", armament: 0, gape: 0.9, span: 0, shape: "coils" },
+  siltadder: { mass: 9, length: 186, stature: 0.08, limbs: 0, hide: 4, hideKind: "slimed", armamentKind: "fangs", armament: 0.5, shape: "coils" },
   // Long-limbed, thin-skinned, and reliant on reach and hands.
-  ashenlorric: { mass: 28, length: 74, stature: 0.95, limbs: 2, hide: 3, hideKind: "naked", armamentKind: "none", armament: 0, gape: 0.22, span: 0, shape: "limbs" },
+  ashenlorric: { mass: 28, length: 74, stature: 0.95, limbs: 2, hide: 3, hideKind: "naked", armamentKind: "crest", armament: 0.24, shape: "limbs" },
 };
 
 // ---------------------------------------------------------------------------
@@ -195,7 +204,10 @@ export function measure(phenotype: Phenotype, map: GeneMap): Morphology {
   // one: bulk drives mass, and the species' frame drives length.
   const massScale = lerp(0.6, 1.6, bulk);
   const vigour = normalised(phenotype, map, "vigour");
-  const lengthScale = lerp(0.84, 1.18, vigour);
+  // Length answers to bulk as well as vigour. Driven by vigour alone it barely
+  // moved — a quarter of a spread across a whole species — which made "breed a
+  // longer animal" an instruction the game could not honour.
+  const lengthScale = lerp(0.8, 1.24, vigour) * lerp(0.92, 1.1, bulk);
 
   const mass = Math.round(frame.mass * massScale * lerp(0.86, 1.16, vigour) * 10) / 10;
   const length = Math.round(frame.length * lengthScale);
@@ -230,19 +242,12 @@ export function measure(phenotype: Phenotype, map: GeneMap): Morphology {
   const tailReach: Record<TailKind, number> = { none: 0, stub: 0.12, fan: 0.3, forked: 0.38, whip: 0.55 };
   const tail = Math.round(length * (tailReach[tailKind] ?? 0));
 
-  const gape = Math.round(stature * frame.gape * lerp(0.85, 1.2, bulk) * 10) / 10;
-
   const focus = normalised(phenotype, map, "focus");
   const acuity = Math.round(lerp(18, 96, focus) * (/keen|deep|still/.test(said) ? 1.08 : 1));
-
-  const venom = /venom|toxic|toxin|potent/.test(said) ? Math.round(lerp(30, 92, focus)) : 0;
-  const span = frame.span === 0 ? 0 : Math.round(length * frame.span * (/absent|naked|reduced/.test(said) ? 0.25 : 1));
-  const display = Math.round(stature * (/grand|bold|full|high|display|crown/.test(said) ? 0.55 : /naked|absent|hidden|plain|smooth/.test(said) ? 0.08 : 0.3));
 
   return {
     mass,
     length,
-    stature,
     limbs,
     stride,
     hide,
@@ -251,11 +256,8 @@ export function measure(phenotype: Phenotype, map: GeneMap): Morphology {
     armamentKind,
     tail,
     tailKind,
-    gape,
     acuity,
-    venom,
-    span,
-    display,
+    stature,
   };
 }
 
@@ -263,33 +265,23 @@ export function measure(phenotype: Phenotype, map: GeneMap): Morphology {
 export const UNITS: Readonly<Record<MeasureId, string>> = {
   mass: "kg",
   length: "cm",
-  stature: "cm",
   limbs: "",
   stride: "cm",
   hide: "mm",
   armament: "cm",
   tail: "cm",
-  gape: "cm",
   acuity: "",
-  venom: "",
-  span: "cm",
-  display: "cm",
 };
 
 export const MEASURE_NAMES: Readonly<Record<MeasureId, string>> = {
   mass: "Mass",
   length: "Length",
-  stature: "Height",
   limbs: "Legs",
   stride: "Stride",
   hide: "Hide",
   armament: "Armament",
   tail: "Tail",
-  gape: "Gape",
   acuity: "Acuity",
-  venom: "Venom",
-  span: "Span",
-  display: "Display",
 };
 
 /**
@@ -304,17 +296,12 @@ export function normaliseMeasure(id: MeasureId, value: number, species: SpeciesI
   const ceiling: Record<MeasureId, number> = {
     mass: frame.mass * 1.9,
     length: frame.length * 1.2,
-    stature: frame.length * frame.stature * 1.3,
     limbs: 4,
     stride: frame.length * frame.stature * 1.6,
     hide: frame.hide * 1.9,
     armament: frame.length * frame.stature * frame.armament * 1.5 || 1,
     tail: frame.length * 0.6 || 1,
-    gape: frame.length * frame.stature * frame.gape * 1.3 || 1,
     acuity: 100,
-    venom: 100,
-    span: frame.length * (frame.span || 1),
-    display: frame.length * frame.stature * 0.6 || 1,
   };
   return clamp01(value / Math.max(1e-6, ceiling[id]));
 }

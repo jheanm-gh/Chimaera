@@ -77,10 +77,12 @@ describe("drawing a creature as pixels", () => {
   it("gives every creature a face, because that is what makes it a creature", () => {
     for (const { id, name } of SPECIES) {
       for (const { sprite } of sample(id, 20)) {
-        const eye = sprite.pixels.some((value) => value === SLOT.eye);
-        const catchlight = sprite.pixels.some((value) => value === SLOT.eyeLight);
+        const eye = sprite.pixels.some((value) => value === SLOT.eyeDark);
+        const catchlight = sprite.pixels.some((value) => value === SLOT.eyeWhite);
+        const mouth = sprite.pixels.some((value) => value === SLOT.mouth);
         expect(eye, `${name} pupil`).toBe(true);
         expect(catchlight, `${name} catchlight`).toBe(true);
+        expect(mouth, `${name} mouth`).toBe(true);
       }
     }
   });
@@ -89,11 +91,18 @@ describe("drawing a creature as pixels", () => {
     for (const { id, name } of SPECIES) {
       const used = new Set<number>();
       for (const { sprite } of sample(id, 20)) for (const value of sprite.pixels) used.add(value);
-      // Highlight through core shadow: a sprite using two rungs is a silhouette
-      // with a colour, not a lit form.
-      for (const slot of [SLOT.outline, SLOT.light, SLOT.base, SLOT.shade]) {
-        expect(used.has(slot), `${name} uses slot ${slot}`).toBe(true);
-      }
+      // Both contours, always: a line that never lifts on the lit side is the
+      // flat single-value outline this ramp exists to replace.
+      expect(used.has(SLOT.outlineDark), `${name} shadow contour`).toBe(true);
+      expect(used.has(SLOT.outlineLit), `${name} lit contour`).toBe(true);
+
+      // And most of the coat ladder. Not all of it: a hide texture legitimately
+      // paints over a whole rung — plate replaces the midtone with segment
+      // bands — and demanding every step would be asserting that no material
+      // may have a strong pattern.
+      const ladder = [SLOT.highlight, SLOT.light, SLOT.base, SLOT.midshade, SLOT.shade, SLOT.core];
+      const spent = ladder.filter((slot) => used.has(slot)).length;
+      expect(spent, `${name} spends its ramp`).toBeGreaterThanOrEqual(5);
     }
   });
 

@@ -1177,6 +1177,69 @@ The tests that caught these are the ones worth keeping: every move must be
 reachable by some real animal, no move may be available to all of them, and each
 species' mass, height and stride must actually spread under breeding.
 
+### D94. Eight measurements, not thirteen
+
+Cut to the set where every survivor gates at least one move *and* has something
+the sprite draws: mass, length, limbs, stride, hide, armament, tail, acuity.
+
+The four that went did not vanish so much as move into a slot that already
+existed. Venom and a display crest are both *the thing on the front of the
+animal*, drawn in the same place as tusks, so they became armament kinds —
+`fangs` and `crest` — rather than numbers of their own. Gape folded into mass,
+because a big animal has a big jaw and two numbers saying so is one too many.
+Height stays as an internal figure the renderer needs to put a head somewhere,
+but nothing in combat reads it, so the player never has to learn it.
+
+### D95. What was actually wrong with the sprites
+
+The complaint was that the art is weak, and it was. Rated against fangame
+pixel art on eight criteria the first sprites came to 4.4 out of 10, and the
+three lowest scores said exactly what to fix: outline craft 3, texture 2, part
+separation 3.
+
+The techniques that closed it, in order of how much each was worth:
+
+**A selective contour.** One flat dark line all the way round is the loudest
+amateur tell in the medium. Two contour colours, chosen per pixel from the light
+level of the body pixel it touches, make the light appear to wrap the form.
+
+**Occlusion at the seams.** A leg drawn in the same coat as the flank behind it
+is invisible until the contact between them is darkened. One rung, from the part
+map, and the limbs stopped dissolving into the trunk.
+
+**A ramp that rotates.** The first ramp slid one colour's lightness up and down,
+which reads as one colour at five brightnesses. Nine steps with hue rotation —
+shadows swinging cool, highlights warm — and saturation arching so both ends
+desaturate.
+
+**Material.** Plate gets segment bands with a lit lip, scale an offset lattice,
+fur short strokes denser in shadow, slime hard speculars, bare skin a broad
+sheen and creases. This is the hide measurement made visible, so the most
+important defensive number in the game is now something you can see.
+
+**Dithered band edges.** Six flat bands meeting on clean curves is a posterised
+gradient, which is what it was. Interleaving adjacent rungs on one parity is
+most of what makes a sprite look worked rather than generated.
+
+**A ground bounce.** A weak second light from below stops the whole underside
+collapsing into one flat core shadow.
+
+**A face.** Brow, sclera, pupil, catchlight, nostril, and a mouth with the
+corner turned down. The brow alone is worth more than it looks: it is the
+difference between an animal that has an eye and one that is looking at
+something.
+
+Second rating: **7.8**. The Kite-Ossel is the weakest at about 6.5 and drags the
+set; the Bramblehog and the Ashen Lorric are around 8.5.
+
+### D96. The heavier renderer stays off the main thread
+
+Texture, dithering and occlusion took a sprite from 1.6ms to 3.5ms. On the main
+thread that would have been the twelve-long-task regression all over again. It
+is not on the main thread, so the 500-creature herd still measures zero long
+tasks at a p50 of 17ms — the worker simply spends longer drawing where nobody
+is waiting on it.
+
 ---
 
 ## Open arguments with the brief
