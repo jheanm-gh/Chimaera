@@ -15,7 +15,7 @@ decision, it does not ship.
 | 1 | Genetics core + test suite | done |
 | 2 | Renderer: genotype to creature image | done |
 | 3 | Core loop: breed, hatch, raise, age, die | done |
-| 4 | Combat and expeditions | not started |
+| 4 | Combat and expeditions | done |
 | 5 | Content: six species, evolution, campaign | not started |
 | 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | not started |
 | 7 | Polish: audio, compendium, genome codes, a11y | not started |
@@ -103,5 +103,25 @@ be able to deduce a genotype without spending a lens.
 
 Saves are versioned JSON in IndexedDB with export and import to file, and a
 migration chain that exists before there is anything to migrate.
+
+## Combat, and what it is for
+
+Combat is the fitness function, not the game. A team of three, roles, stances
+and equipment are set beforehand; then it resolves with no input possible.
+Equipment is capped at a fifth of effective power, deterministically, and a test
+sweeps every loadout to prove it. Affinity is a co-dominant locus, so hybrids
+average both matchups — rounder defensively, blunter offensively.
+
+Variance is per-fight rather than per-hit, because per-hit noise averages away
+over fifty blows and makes win rate a step function of genetic advantage. The
+calibrated curve gives a 5% better lineage about 80% and a 10% better one about
+94%, so genes dominate while the band real breeding decisions live in still has
+resolution worth sampling.
+
+The League is safe and repeatable — it is the scoreboard. Bulk evaluation runs
+fifty to a thousand fights in a Web Worker and reports win rate and per-creature
+survival, which is how you find out which of your three keeps dying.
+Expeditions are the risk: a procedurally generated region, damage that carries
+between nodes, and permadeath.
 
 See `DECISIONS.md` for why each of those works the way it does.

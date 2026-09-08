@@ -348,3 +348,73 @@ select {
   .layout-ranch { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; overflow-y: auto; }
   .pairing { grid-template-columns: 1fr; }
 }
+
+
+/* --- the field: league, evaluation, expedition --------------------------- */
+
+.field { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; align-items: start; }
+.field > .expedition { grid-column: 1 / -1; }
+
+.team-picker { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.team-picker label { display: flex; align-items: center; gap: 8px; font-size: 0.9em; }
+.team-name { flex: 1; }
+
+.ladder { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ladder li {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px;
+  padding: 7px 10px; border: 1px solid var(--rule); border-radius: 2px;
+}
+.ladder li.won { border-left: 3px solid var(--good); }
+.ladder li.locked { opacity: 0.45; }
+.ladder-name { font-family: var(--font-display); }
+.ladder .mono { color: var(--pale-dim); }
+
+.evaluate-controls { display: flex; align-items: flex-end; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.evaluate-controls label { display: flex; flex-direction: column; gap: 4px; }
+.evaluate-controls label > span {
+  font-family: var(--font-mono); font-size: 0.64em; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--pale-dim);
+}
+
+.report { border-top: 1px solid var(--rule); padding-top: 12px; }
+.report-headline { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.report-headline strong { font-family: var(--font-mono); font-size: 1.9em; font-variant-numeric: tabular-nums; }
+.report-headline .mono { color: var(--pale-dim); }
+.survival { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.survival li { display: grid; grid-template-columns: 1fr 110px auto; align-items: center; gap: 10px; font-size: 0.86em; }
+.survival-bar { height: 7px; background: rgba(0,0,0,0.3); border-radius: 1px; position: relative; }
+.survival-bar i { position: absolute; inset: 0 auto 0 0; background: var(--good); }
+
+.danger-panel { border-left: 3px solid var(--bad); }
+
+.expedition-team { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.expedition-member { display: grid; grid-template-columns: 1fr 160px auto; align-items: center; gap: 10px; font-size: 0.9em; }
+.hp-track { height: 9px; background: rgba(0,0,0,0.32); border-radius: 1px; position: relative; }
+.hp-track i { position: absolute; inset: 0 auto 0 0; background: var(--bad); }
+
+.region-map { display: flex; gap: 10px; align-items: center; margin: 14px 0; overflow-x: auto; padding: 8px 0; }
+.region-layer { display: flex; flex-direction: column; gap: 5px; }
+.region-node {
+  width: 18px; height: 18px; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 2px; font-size: 10px; color: var(--pale-dim);
+}
+.region-node.past { color: var(--pale); border-color: var(--pale-dim); }
+.region-node.here { color: #fdf6ee; background: var(--stamp); border-color: var(--stamp); }
+.region-node.kind-warden { border-color: var(--bad); color: #e8b0a0; }
+
+.expedition-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.expedition-options button {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left;
+  padding: 10px 12px; font-family: var(--font-body); font-size: 0.9em; letter-spacing: 0;
+}
+.expedition-options strong { font-family: var(--font-display); font-weight: 500; }
+.expedition-options .mono { color: var(--pale-dim); }
+.expedition-options em { color: var(--pale-dim); font-size: 0.88em; }
+
+.expedition-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.carried { display: flex; flex-direction: column; gap: 2px; font-size: 0.86em; }
+.carried .mono { color: var(--pale-dim); font-size: 0.7em; letter-spacing: 0.14em; text-transform: uppercase; }
+
+.expedition-log { list-style: none; margin: 16px 0 0; padding: 0; font-size: 0.86em; color: var(--pale-dim); display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+.journal-lost, .journal-expeditionEnded { color: #e0a08c; }
+.journal-battle { color: #cfe0c4; }

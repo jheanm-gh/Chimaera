@@ -25,6 +25,7 @@ import {
   sexOf,
 } from "@chimaera/genetics";
 import type { MutagenLoad, Rng } from "@chimaera/genetics";
+import { equipmentById } from "./combat.js";
 import { itemById } from "./content.js";
 import type { ItemDef } from "./content.js";
 import { evolutionContext, resolveBranch, shouldEvolve } from "./evolution.js";
@@ -37,6 +38,7 @@ import {
   stageForAge,
   tickCreature,
 } from "./lifecycle.js";
+import { enterExpedition, expeditionMove, expeditionWithdraw, runBout } from "./runs.js";
 import type {
   Action,
   ActionResult,
@@ -167,6 +169,7 @@ export function createRanch(map: GeneMap, options: NewRanchOptions): RanchState 
     },
     capacity: options.capacity ?? 24,
     archiveCapacity: 12,
+    leagueTier: 0,
   };
 }
 
@@ -208,6 +211,9 @@ function newCreature(args: NewCreatureArgs): Creature {
     habitat: "mirefen",
     training: "none",
     bond: 20,
+    role: "runner",
+    stance: "measure",
+    equipment: [],
     achieved,
     marks: args.marks ?? {},
     revealed: [],
@@ -287,7 +293,40 @@ export function applyAction(state: RanchState, action: Action, map: GeneMap): Ac
       return doRelease(state, action.id);
     case "catchWild":
       return doCatchWild(state, map);
+    case "setRole":
+      return patch(state, action.id, (c) => ({ ...c, role: action.role }));
+    case "setStance":
+      return patch(state, action.id, (c) => ({ ...c, stance: action.stance }));
+    case "setEquipment":
+      return doSetEquipment(state, action.id, action.equipment);
+    case "bout":
+      return runBout(state, action.team, action.tier, map, advance);
+    case "enterExpedition":
+      return enterExpedition(state, action.team, action.regionSeed, map);
+    case "expeditionMove":
+      return expeditionMove(state, action.nodeId, map, advance);
+    case "expeditionWithdraw":
+      return expeditionWithdraw(state, map, advance);
   }
+}
+
+/**
+ * Equipment is owned by the ranch, not duplicated: a harness on one creature is
+ * not also on another. Anything already worn elsewhere is refused rather than
+ * silently cloned.
+ */
+function doSetEquipment(state: RanchState, id: CreatureId, equipment: readonly string[]): ActionResult {
+  const creature = findCreature(state, id);
+  if (!creature) return blocked(state, "That creature is not on the ranch.");
+  for (const item of equipment) {
+    if (!equipmentById(item)) return blocked(state, "That is not a piece of equipment.");
+    const owned = state.inventory.items[item] ?? 0;
+    const wornElsewhere = state.creatures.filter((c) => c.id !== id && c.equipment.includes(item)).length;
+    if (owned - wornElsewhere <= 0) return blocked(state, `Every ${equipmentById(item)?.name} you own is already in use.`);
+  }
+  const slots = new Set(equipment.map((item) => equipmentById(item)?.slot));
+  if (slots.size !== equipment.length) return blocked(state, "One item per slot.");
+  return patch(state, id, (c) => ({ ...c, equipment: [...equipment] }));
 }
 
 function blocked(state: RanchState, reason: string): ActionResult {
@@ -322,7 +361,12 @@ function renameCreature(state: RanchState, id: CreatureId, name: string): Action
 
 // --- The day loop ----------------------------------------------------------
 
-function advance(state: RanchState, days: number, map: GeneMap): ActionResult {
+/**
+ * Exported so runs.ts can spend days without importing the reducer back — the
+ * two modules would otherwise form a cycle, and the day loop is the one piece
+ * both of them genuinely need.
+ */
+export function advance(state: RanchState, days: number, map: GeneMap): ActionResult {
   let current = state;
   const events: GameEvent[] = [];
 

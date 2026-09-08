@@ -10,8 +10,12 @@ import {
   previewBranches,
   TRAINING,
   branchesForSpecies,
+  EQUIPMENT,
+  equipmentById,
+  ROLES,
+  STANCES,
 } from "@chimaera/game";
-import type { Creature, DietId, HabitatId, TrainingId } from "@chimaera/game";
+import type { Creature, DietId, HabitatId, Role, Stance, TrainingId } from "@chimaera/game";
 import { genotypeAt } from "@chimaera/genetics";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useState } from "react";
@@ -176,6 +180,75 @@ export function CreaturePanel({ creature, ranch, mode, onSelectRelative }: Props
             Spend a day with it
           </button>
         </div>
+      </section>
+
+      <section>
+        <h3>In the field</h3>
+        <div className="axes">
+          <label>
+            <span>Role</span>
+            <select
+              value={creature.role}
+              onChange={(e) => ranch.dispatch({ kind: "setRole", id: creature.id, role: e.target.value as Role })}
+            >
+              {ROLES.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <em>{ROLES.find((r) => r.id === creature.role)?.blurb}</em>
+          </label>
+          <label>
+            <span>Stance</span>
+            <select
+              value={creature.stance}
+              onChange={(e) => ranch.dispatch({ kind: "setStance", id: creature.id, stance: e.target.value as Stance })}
+            >
+              {STANCES.map((stance) => (
+                <option key={stance.id} value={stance.id}>
+                  {stance.name}
+                </option>
+              ))}
+            </select>
+            <em>{STANCES.find((s) => s.id === creature.stance)?.blurb}</em>
+          </label>
+          {(["harness", "charm"] as const).map((slot) => {
+            const worn = creature.equipment.find((id) => equipmentById(id)?.slot === slot);
+            const owned = EQUIPMENT.filter(
+              (item) => item.slot === slot && (ranch.state.inventory.items[item.id] ?? 0) > 0,
+            );
+            return (
+              <label key={slot}>
+                <span>{slot}</span>
+                <select
+                  value={worn ?? ""}
+                  onChange={(e) => {
+                    const rest = creature.equipment.filter((id) => equipmentById(id)?.slot !== slot);
+                    ranch.dispatch({
+                      kind: "setEquipment",
+                      id: creature.id,
+                      equipment: e.target.value === "" ? rest : [...rest, e.target.value],
+                    });
+                  }}
+                >
+                  <option value="">Nothing</option>
+                  {owned.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                  {worn && !owned.some((i) => i.id === worn) ? (
+                    <option value={worn}>{equipmentById(worn)?.name}</option>
+                  ) : null}
+                </select>
+              </label>
+            );
+          })}
+        </div>
+        <p className="hint">
+          Equipment is capped at a fifth of effective power, always. It cannot make a worse animal into a better one.
+        </p>
       </section>
 
       <section>

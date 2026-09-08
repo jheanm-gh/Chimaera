@@ -9,5 +9,8 @@ export * from "./types.js";
 export * from "./content.js";
 export * from "./lifecycle.js";
 export * from "./evolution.js";
+export * from "./combat.js";
+export * from "./expedition.js";
+export * from "./runs.js";
 export * from "./ranch.js";
 export * from "./save.js";

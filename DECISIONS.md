@@ -377,9 +377,101 @@ what a creature looks like, and the two would drift.
 
 ---
 
+## Phase 4 — Combat and expeditions
+
+### D42. The equipment cap is stated as a share, not as a bonus
+
+§3 says equipment contributes "no more than 20% of effective power". A bonus `b`
+on top of gene power is `b / (1 + b)` of the result, so a 20% *share* is a 25%
+*bonus* — two different numbers that are easy to confuse into a cap that does
+not cap. `MAX_EQUIPMENT_BONUS` is derived from `MAX_EQUIPMENT_SHARE` rather than
+typed in, and a test sweeps every loadout of every item at five power levels and
+asserts the share never exceeds 0.2.
+
+The cap binds exactly where it should: two tier-3 pieces total 0.26 and are
+trimmed to 0.25. Gear tops out precisely at the point where it stops being the
+answer.
+
+### D43. Equipment is deterministic, and A1 is resolved
+
+The open argument from Phase 1 (A1) is settled in favour of a flat, visible
+percentage. §3 asks players to bulk-simulate fifty fights to evaluate a lineage;
+if equipment contributed a *variable* share, a large part of what those fifty
+fights measured would be equipment noise rather than genes. Only the damage roll
+and a per-fight condition roll vary.
+
+### D44. Initiative ties are jittered from the seed, never broken by id
+
+Found by calibration, not by playing: with ties broken by id, the team passed
+first struck first in every round, and two **identical** teams gave the
+first-listed one a **98.5% win rate**. In a three-a-side attrition fight, acting
+first is close to decisive. Argument order is not a stat, and this would have
+silently decided every League bout and every Rival Ranch match.
+
+### D45. Variance is per-fight, not per-hit
+
+The first fix made fights fair but far too sharp: a 5% better lineage won 99.5%
+of four hundred fights. Widening the per-hit roll does not help — a three-a-side
+fight lands about fifty blows, so per-hit noise averages almost entirely away,
+while attrition *compounds* (lose a creature, lose its actions, lose faster).
+
+The lever that works is correlated, per-fight variance: each creature rolls its
+condition once and carries it through the fight. The calibration curve is now
+
+    advantage   0%    2%    5%    10%   15%   25%
+    win rate    49%   62%   80%   94%   99%   100%
+
+Genes dominate — a tenth of a stat point is nearly decisive — while the band
+where real breeding comparisons live still has enough resolution that sampling
+fifty fights tells you something one fight would not.
+
+### D46. Hybrid affinity averages both matchups
+
+The affinity locus is co-dominant, so a hybrid genuinely carries two. Averaging
+the matchup across every pair makes a hybrid rounder defensively and blunter
+offensively — never fully weak, never fully strong. That is a breeding trade
+rather than a strictly better type, which is what keeps the pure affinities worth
+breeding for.
+
+### D47. Bulk simulation runs in a Web Worker, and only specs cross the boundary
+
+§10 asks for it off the main thread. A five-hundred creature save is most of a
+megabyte, and structured-cloning the ranch per query would cost more than the
+simulation it was avoiding. Only the combatant specs and a difficulty go across.
+Fifty fights come back in about 20ms.
+
+### D48. Expeditions are gated behind one League win
+
+A first expedition that wipes the starting herd is not a lesson about risk, it
+is a lesson about not playing. The League is safe, repeatable and costs nothing
+but a day, so it is where a player finds out what their animals can take. §4
+gates Expedition at Chapter 2 for the same reason; this is the mechanical
+version of that gate.
+
+### D49. Loot is kept on a loss, and withdrawing costs nothing
+
+The run already took a creature. Confiscating the findings as well would only
+teach the player not to go out, which breaks the loop the expedition exists to
+serve — getting outside blood into a closing herd. The reason to press on to the
+warden is that the warden holds the prize, which is a better bargain to offer
+than a penalty for stopping.
+
+### D50. Condition carries between nodes
+
+`CombatantSpec.startingHp` makes an expedition a *run* rather than a series of
+unrelated fights: damage taken at the third node is still there at the warden,
+and a spring gives back 45% and never all of it. A creature carried in already
+unconscious is not silently revived, and is not double-counted as newly lost.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.
+
+**A1. RESOLVED in Phase 4 (D42, D43).** Equipment contributes a flat,
+deterministic, hard-capped share, and the cap is asserted by a test that sweeps
+every loadout. Original argument follows.
 
 **A1. "Equipment contributes no more than 20% of effective power" plus "no
 inputs during the fight" (§3).** Together these leave equipment as nearly the

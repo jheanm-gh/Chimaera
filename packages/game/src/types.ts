@@ -17,6 +17,8 @@
  */
 
 import type { EpigeneticMarks, Genome, LocusId, RngState, Sex, SpeciesId, StatId } from "@chimaera/genetics";
+import type { Role, Stance } from "./combat.js";
+import type { ExpeditionState } from "./expedition.js";
 
 export type CreatureId = string;
 
@@ -54,6 +56,12 @@ export interface Creature {
   /** 0-100. Grows with attention; gates evolution branches (§2.2). */
   readonly bond: number;
   readonly heldItem?: string | undefined;
+
+  /** Combat loadout (§3). Set before a fight; no input is possible during one. */
+  readonly role: Role;
+  readonly stance: Stance;
+  /** Two slots. Capped at 20% of effective power, enforced in `combat.ts`. */
+  readonly equipment: readonly string[];
 
   /**
    * Achieved stats. Genes set the ceiling in the phenotype; these are how close
@@ -153,6 +161,11 @@ export interface RanchState {
   /** Ranch capacity. Expandable, and one of the few honest monetisation hooks (§9). */
   readonly capacity: number;
   readonly archiveCapacity: number;
+
+  /** An expedition in progress. Absent when the player is at home. */
+  readonly expedition?: ExpeditionState | undefined;
+  /** Highest League tier cleared. Cleared tiers can be bulk-simulated (§3). */
+  readonly leagueTier: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +189,14 @@ export type Action =
   | { readonly kind: "rename"; readonly id: CreatureId; readonly name: string }
   | { readonly kind: "archive"; readonly id: CreatureId }
   | { readonly kind: "release"; readonly id: CreatureId }
-  | { readonly kind: "catchWild"; readonly species?: SpeciesId };
+  | { readonly kind: "catchWild"; readonly species?: SpeciesId }
+  | { readonly kind: "setRole"; readonly id: CreatureId; readonly role: Role }
+  | { readonly kind: "setStance"; readonly id: CreatureId; readonly stance: Stance }
+  | { readonly kind: "setEquipment"; readonly id: CreatureId; readonly equipment: readonly string[] }
+  | { readonly kind: "bout"; readonly team: readonly CreatureId[]; readonly tier: number }
+  | { readonly kind: "enterExpedition"; readonly team: readonly CreatureId[]; readonly regionSeed?: string }
+  | { readonly kind: "expeditionMove"; readonly nodeId: string }
+  | { readonly kind: "expeditionWithdraw" };
 
 export type GameEvent =
   | { readonly kind: "dayPassed"; readonly day: number }
@@ -192,7 +212,18 @@ export type GameEvent =
   | { readonly kind: "discovery"; readonly what: string; readonly detail: string }
   | { readonly kind: "revealed"; readonly id: CreatureId; readonly loci: readonly LocusId[] }
   | { readonly kind: "caught"; readonly id: CreatureId; readonly name: string }
-  | { readonly kind: "blocked"; readonly reason: string };
+  | { readonly kind: "blocked"; readonly reason: string }
+  | {
+      readonly kind: "battle";
+      readonly won: boolean;
+      readonly rounds: number;
+      readonly summary: string;
+      readonly tier?: number;
+    }
+  | { readonly kind: "expeditionEntered"; readonly region: string }
+  | { readonly kind: "expeditionNode"; readonly node: string; readonly detail: string }
+  | { readonly kind: "expeditionEnded"; readonly outcome: "won" | "lost" | "withdrawn"; readonly summary: string }
+  | { readonly kind: "lost"; readonly id: CreatureId; readonly name: string; readonly where: string };
 
 export interface ActionResult {
   readonly state: RanchState;

@@ -4,17 +4,19 @@ import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CreatureFigure } from "./components/CreatureFigure.js";
 import { CreaturePanel } from "./components/CreaturePanel.js";
+import { FieldView } from "./components/FieldView.js";
 import { PairingView } from "./components/PairingView.js";
 import { PedigreeView } from "./components/PedigreeView.js";
 import { VirtualGrid } from "./components/VirtualGrid.js";
 import { exportToFile, importFromFile } from "./db.js";
 import { map, useRanch } from "./useRanch.js";
 
-type Tab = "ranch" | "pairing" | "pedigree" | "archive" | "journal";
+type Tab = "ranch" | "pairing" | "field" | "pedigree" | "archive" | "journal";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "ranch", label: "Ranch" },
   { id: "pairing", label: "Pairing" },
+  { id: "field", label: "Field" },
   { id: "pedigree", label: "Pedigree" },
   { id: "archive", label: "Archive" },
   { id: "journal", label: "Journal" },
@@ -183,6 +185,8 @@ export function App() {
 
         {tab === "pairing" ? <PairingView ranch={ranch} mode={mode} /> : null}
 
+        {tab === "field" ? <FieldView ranch={ranch} /> : null}
+
         {tab === "pedigree" ? (
           <PedigreeView state={ranch.state} rootId={selected?.id} onSelect={setSelectedId} />
         ) : null}
@@ -293,6 +297,16 @@ function describe(event: GameEvent): string {
       return `Read ${event.loci.length} loci.`;
     case "caught":
       return `${event.name} was caught in the Mirefen.`;
+    case "battle":
+      return event.summary;
+    case "expeditionEntered":
+      return `Put in at ${event.region}.`;
+    case "expeditionNode":
+      return `${event.node}. ${event.detail}`;
+    case "expeditionEnded":
+      return event.summary;
+    case "lost":
+      return `${event.name} was lost at ${event.where}. It is not coming back.`;
     case "blocked":
       return event.reason;
     case "dayPassed":
