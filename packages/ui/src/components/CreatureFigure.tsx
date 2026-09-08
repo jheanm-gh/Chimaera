@@ -4,7 +4,7 @@ import { expressPhenotype } from "@chimaera/genetics";
 import { renderCreature, toSvg } from "@chimaera/rendering";
 import type { DetailLevel, PaletteMode } from "@chimaera/rendering";
 import { memo, useMemo } from "react";
-import { map } from "../useRanch.js";
+import { mapOf } from "@chimaera/game";
 
 /**
  * Generated SVG, kept across mounts.
@@ -70,15 +70,15 @@ export const CreatureFigure = memo(function CreatureFigure({
       // so it genuinely belongs in the drawing — but it must never touch the
       // cached phenotype, because nothing about the animal has changed.
       const phenotype = suppressKey
-        ? expressPhenotype(creature.genome, map, { suppressDominanceAt: suppressKey.split(",") })
-        : phenotypeOf(creature, map);
-      const drawing = renderCreature(phenotype, map, { mode, detail });
+        ? expressPhenotype(creature.genome, mapOf(creature), { suppressDominanceAt: suppressKey.split(",") })
+        : phenotypeOf(creature);
+      const drawing = renderCreature(phenotype, mapOf(creature), { mode, detail });
       return toSvg(drawing, {
         width,
         height: Math.round((width * drawing.height) / drawing.width),
         journalFrame: frame,
         idPrefix: `c-${creature.id}-${mode}`,
-        title: `${creature.name}, ${creature.sex === "female" ? "female" : "male"} ${map.species.name}`,
+        title: `${creature.name}, ${creature.sex === "female" ? "female" : "male"} ${mapOf(creature).species.name}`,
       });
     });
   }, [creature, mode, width, frame, detail, suppressKey]);

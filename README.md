@@ -155,4 +155,19 @@ action and sticky once met, which means they can be tested without simulating a
 player — and they are: a scripted ranch with no selection cleverness at all
 completes chapters 1 and 2 through the real reducer.
 
+## Mixed stock
+
+A station is posted to one species — that is what the fen outside produces and
+what the campaign's commissions are written for — but the pens can hold
+anything you bring home. Every creature carries its own species and its gene map
+is resolved from that at the point of use, so a Silt-Adder in a Quillfen station
+expresses, draws and ages as a Silt-Adder. Cross-species pairings are refused
+rather than fudged.
+
+Each of the six biomes belongs to exactly one species, so an expedition's
+destination names an animal: travelling to the Galeshore is how a Quillfen
+station comes home with a Kite-Ossel, and it is the only way. That is the
+diegetic answer to a closed herd's problem, and it costs what an expedition
+costs.
+
 See `DECISIONS.md` for why each of those works the way it does.

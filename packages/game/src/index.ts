@@ -6,6 +6,7 @@
  */
 
 export * from "./types.js";
+export * from "./bestiary.js";
 export * from "./content.js";
 export * from "./lifecycle.js";
 export * from "./branches.js";

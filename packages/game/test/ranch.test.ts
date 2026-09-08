@@ -41,7 +41,7 @@ function run(state: RanchState, actions: readonly Action[]): { state: RanchState
   let current = state;
   const events: GameEvent[] = [];
   for (const action of actions) {
-    const result = applyAction(current, action, map);
+    const result = applyAction(current, action);
     current = result.state;
     events.push(...result.events);
   }
@@ -57,7 +57,7 @@ function byId(state: RanchState, id: string): Creature {
 describe("a new ranch", () => {
   let ranch: RanchState;
   beforeEach(() => {
-    ranch = createRanch(map, { seed: "test-ranch" });
+    ranch = createRanch({ species: map.species.id, seed: "test-ranch" });
   });
 
   it("starts with a breedable pair, not a waiting game", () => {
@@ -69,7 +69,7 @@ describe("a new ranch", () => {
 
   it("gives founders a plausible amount of raising already behind them", () => {
     for (const creature of activeCreatures(ranch)) {
-      const phenotype = phenotypeOf(creature, map);
+      const phenotype = phenotypeOf(creature);
       const reached = achievement(creature, phenotype, map);
       // Not newborn stats in an adult body, and not maxed either.
       expect(reached.vigour).toBeGreaterThan(0.3);
@@ -78,7 +78,7 @@ describe("a new ranch", () => {
   });
 
   it("is reproducible from its seed", () => {
-    const again = createRanch(map, { seed: "test-ranch" });
+    const again = createRanch({ species: map.species.id, seed: "test-ranch" });
     expect(JSON.stringify(saveRanch(ranch))).toBe(JSON.stringify(saveRanch(again)));
   });
 });
@@ -93,7 +93,7 @@ describe("life stages", () => {
   });
 
   it("opens fertility in adult and closes it in elder", () => {
-    const ranch = createRanch(map, { seed: "fertility" });
+    const ranch = createRanch({ species: map.species.id, seed: "fertility" });
     const adult = activeCreatures(ranch)[0] as Creature;
     expect(isFertile(adult)).toBe(true);
 
@@ -104,7 +104,7 @@ describe("life stages", () => {
   });
 
   it("kills a creature when it reaches its lifespan", () => {
-    const ranch = createRanch(map, { seed: "mortality" });
+    const ranch = createRanch({ species: map.species.id, seed: "mortality" });
     const result = run(ranch, [{ kind: "advanceDays", days: 320 }]);
     expect(result.events.some((e) => e.kind === "died")).toBe(true);
     expect(activeCreatures(result.state).length).toBeLessThan(activeCreatures(ranch).length);
@@ -122,14 +122,14 @@ describe("life stages", () => {
       VIG_C: ["VC0", "VC0"],
     });
     const express = (g: typeof hardy, f: number) =>
-      lifespanFor(phenotypeOf({ genome: g, inbreeding: f } as Creature, map), map, f);
+      lifespanFor(phenotypeOf({ genome: g, inbreeding: f, species: map.species.id } as Creature), map, f);
 
     expect(express(hardy, 0)).toBeGreaterThan(express(frail, 0));
     expect(express(hardy, 0.5)).toBeLessThan(express(hardy, 0));
   });
 
   it("archives an elder instead of losing it, keeping the genome forever", () => {
-    const ranch = createRanch(map, { seed: "archive" });
+    const ranch = createRanch({ species: map.species.id, seed: "archive" });
     const target = activeCreatures(ranch)[0] as Creature;
     const result = run(ranch, [{ kind: "archive", id: target.id }]);
 
@@ -147,7 +147,7 @@ describe("life stages", () => {
 
 describe("raising", () => {
   it("approaches the genetic ceiling and never passes it", () => {
-    const ranch = createRanch(map, { seed: "ceiling" });
+    const ranch = createRanch({ species: map.species.id, seed: "ceiling" });
     const target = activeCreatures(ranch)[0] as Creature;
     const trained = run(ranch, [
       { kind: "setTraining", id: target.id, training: "endurance" },
@@ -157,7 +157,7 @@ describe("raising", () => {
 
     const creature = byId(trained, target.id);
     if (creature.status !== "active") return;
-    const phenotype = phenotypeOf(creature, map);
+    const phenotype = phenotypeOf(creature);
     for (const trait of map.polygenicTraits) {
       const ceiling = phenotype.stats[trait.id] ?? 0;
       expect(creature.achieved[trait.id] ?? 0).toBeLessThanOrEqual(ceiling + 1e-9);
@@ -167,7 +167,7 @@ describe("raising", () => {
   });
 
   it("lets diet decide which stats approach their ceiling", () => {
-    const ranch = createRanch(map, { seed: "diet" });
+    const ranch = createRanch({ species: map.species.id, seed: "diet" });
     const target = activeCreatures(ranch)[0] as Creature;
 
     const fedSilt = byId(
@@ -190,7 +190,7 @@ describe("raising", () => {
   });
 
   it("charges training in days of life", () => {
-    const ranch = createRanch(map, { seed: "training-cost" });
+    const ranch = createRanch({ species: map.species.id, seed: "training-cost" });
     const target = activeCreatures(ranch)[0] as Creature;
 
     const untrained = byId(run(ranch, [{ kind: "advanceDays", days: 40 }]).state, target.id);
@@ -207,7 +207,7 @@ describe("raising", () => {
   });
 
   it("makes a mismatched habitat suppress growth", () => {
-    const ranch = createRanch(map, { seed: "habitat" });
+    const ranch = createRanch({ species: map.species.id, seed: "habitat" });
     const target = activeCreatures(ranch)[0] as Creature;
     const home = byId(
       run(ranch, [
@@ -227,7 +227,7 @@ describe("raising", () => {
   });
 
   it("grows bond with attention and spends a day doing it", () => {
-    const ranch = createRanch(map, { seed: "bond" });
+    const ranch = createRanch({ species: map.species.id, seed: "bond" });
     const target = activeCreatures(ranch)[0] as Creature;
     const tended = run(ranch, [{ kind: "tend", id: target.id }]);
 
@@ -236,7 +236,7 @@ describe("raising", () => {
   });
 
   it("keeps fasting alive as a real trade: no growth, more days", () => {
-    const ranch = createRanch(map, { seed: "fasting" });
+    const ranch = createRanch({ species: map.species.id, seed: "fasting" });
     const target = activeCreatures(ranch)[0] as Creature;
     const fasted = byId(
       run(ranch, [
@@ -261,7 +261,7 @@ describe("raising", () => {
 
 describe("evolution", () => {
   function grownAdult(seed: string, genomeSpec: Parameters<typeof genomeFromSpec>[2], actions: (id: string) => Action[]) {
-    const base = createRanch(map, { seed, founders: 2 });
+    const base = createRanch({ species: map.species.id, seed, founders: 2 });
     // Replace a founder's genome so the genetic half of the branch is controlled.
     const target = activeCreatures(base)[0] as Creature;
     const genome = genomeFromSpec(map, target.sex, genomeSpec);
@@ -338,9 +338,9 @@ describe("evolution", () => {
   });
 
   it("previews what is in reach without handing over the recipe", () => {
-    const ranch = createRanch(map, { seed: "preview" });
+    const ranch = createRanch({ species: map.species.id, seed: "preview" });
     const target = activeCreatures(ranch)[0] as Creature;
-    const context = evolutionContext(target, phenotypeOf(target, map), map);
+    const context = evolutionContext(target, phenotypeOf(target), map);
     const previews = previewBranches(context, "quillfen");
 
     expect(previews.length).toBeGreaterThan(0);
@@ -357,7 +357,7 @@ describe("evolution", () => {
 
 describe("breeding", () => {
   it("produces an egg that hatches after incubation", () => {
-    const ranch = createRanch(map, { seed: "breeding" });
+    const ranch = createRanch({ species: map.species.id, seed: "breeding" });
     const { sires, dams } = fertilePairs(ranch);
     const result = run(ranch, [
       { kind: "breed", sireId: (sires[0] as Creature).id, damId: (dams[0] as Creature).id },
@@ -378,7 +378,7 @@ describe("breeding", () => {
   });
 
   it("makes a lethal pairing cost a week before it teaches its lesson", () => {
-    const ranch = createRanch(map, { seed: "lethal" });
+    const ranch = createRanch({ species: map.species.id, seed: "lethal" });
     const sire = activeCreatures(ranch).find((c) => c.sex === "male") as Creature;
     const dam = activeCreatures(ranch).find((c) => c.sex === "female") as Creature;
     const carriers: RanchState = {
@@ -411,27 +411,27 @@ describe("breeding", () => {
   });
 
   it("refuses pairings that make no sense, without spending a day", () => {
-    const ranch = createRanch(map, { seed: "refusals" });
+    const ranch = createRanch({ species: map.species.id, seed: "refusals" });
     const { sires, dams } = fertilePairs(ranch);
     const sire = sires[0] as Creature;
     const dam = dams[0] as Creature;
 
-    const sameSex = applyAction(ranch, { kind: "breed", sireId: sire.id, damId: sire.id }, map);
+    const sameSex = applyAction(ranch, { kind: "breed", sireId: sire.id, damId: sire.id });
     expect(sameSex.events[0]?.kind).toBe("blocked");
     expect(sameSex.state.day).toBe(ranch.day);
 
-    const reversed = applyAction(ranch, { kind: "breed", sireId: dam.id, damId: sire.id }, map);
+    const reversed = applyAction(ranch, { kind: "breed", sireId: dam.id, damId: sire.id });
     expect(reversed.events[0]?.kind).toBe("blocked");
   });
 
   it("computes the offspring's inbreeding coefficient from the pedigree", () => {
-    const ranch = createRanch(map, { seed: "coefficient" });
+    const ranch = createRanch({ species: map.species.id, seed: "coefficient" });
     const { sires, dams } = fertilePairs(ranch);
     expect(projectedInbreeding(ranch, (sires[0] as Creature).id, (dams[0] as Creature).id)).toBe(0);
   });
 
   it("spends consumables whatever the outcome, and charges mutagens in lifespan", () => {
-    const ranch = createRanch(map, {
+    const ranch = createRanch({ species: map.species.id,
       seed: "items",
       startingItems: { "mutagen-refined": 1 },
     });
@@ -449,12 +449,11 @@ describe("breeding", () => {
   });
 
   it("will not breed past the ranch's capacity", () => {
-    const ranch = createRanch(map, { seed: "capacity", founders: 4, capacity: 4 });
+    const ranch = createRanch({ species: map.species.id, seed: "capacity", founders: 4, capacity: 4 });
     const { sires, dams } = fertilePairs(ranch);
     const result = applyAction(
       ranch,
       { kind: "breed", sireId: (sires[0] as Creature).id, damId: (dams[0] as Creature).id },
-      map,
     );
     expect(result.events[0]).toEqual({ kind: "blocked", reason: "The ranch is full. Archive or release something first." });
   });
@@ -462,7 +461,7 @@ describe("breeding", () => {
 
 describe("the information game", () => {
   it("reveals nothing until a lens is used", () => {
-    const ranch = createRanch(map, { seed: "lens" });
+    const ranch = createRanch({ species: map.species.id, seed: "lens" });
     const target = activeCreatures(ranch)[0] as Creature;
     expect(target.revealed).toEqual([]);
 
@@ -474,7 +473,7 @@ describe("the information game", () => {
   });
 
   it("keeps the Assay Bench away from stat loci, and the Sequencer honest", () => {
-    const ranch = createRanch(map, {
+    const ranch = createRanch({ species: map.species.id,
       seed: "tiers",
       startingItems: { "assay-bench": 1, "deep-sequencer": 1 },
     });
@@ -498,9 +497,9 @@ describe("the information game", () => {
   });
 
   it("needs a locus named before a Field Lens will read anything", () => {
-    const ranch = createRanch(map, { seed: "lens-arg" });
+    const ranch = createRanch({ species: map.species.id, seed: "lens-arg" });
     const target = activeCreatures(ranch)[0] as Creature;
-    const result = applyAction(ranch, { kind: "useItem", id: target.id, item: "field-lens" }, map);
+    const result = applyAction(ranch, { kind: "useItem", id: target.id, item: "field-lens" });
     expect(result.events[0]?.kind).toBe("blocked");
     expect(result.state.inventory.items["field-lens"]).toBe(2);
   });
@@ -517,20 +516,20 @@ describe("determinism", () => {
   ];
 
   it("reproduces a playthrough exactly from the same seed and actions", () => {
-    const a = run(createRanch(map, { seed: "replay" }), script);
-    const b = run(createRanch(map, { seed: "replay" }), script);
+    const a = run(createRanch({ species: map.species.id, seed: "replay" }), script);
+    const b = run(createRanch({ species: map.species.id, seed: "replay" }), script);
     expect(toJson(a.state)).toBe(toJson(b.state));
     expect(JSON.stringify(a.events)).toBe(JSON.stringify(b.events));
   });
 
   it("diverges on a different seed", () => {
-    const a = run(createRanch(map, { seed: "replay" }), script);
-    const b = run(createRanch(map, { seed: "other" }), script);
+    const a = run(createRanch({ species: map.species.id, seed: "replay" }), script);
+    const b = run(createRanch({ species: map.species.id, seed: "other" }), script);
     expect(toJson(a.state)).not.toBe(toJson(b.state));
   });
 
   it("resumes identically from a save", () => {
-    const start = createRanch(map, { seed: "resume" });
+    const start = createRanch({ species: map.species.id, seed: "resume" });
     const half = run(start, script.slice(0, 3));
     const resumed = fromJson(toJson(half.state));
     expect(toJson(run(resumed, script.slice(3)).state)).toBe(toJson(run(half.state, script.slice(3)).state));
@@ -539,7 +538,7 @@ describe("determinism", () => {
 
 describe("saves", () => {
   it("round-trips a ranch exactly", () => {
-    const ranch = run(createRanch(map, { seed: "save" }), [
+    const ranch = run(createRanch({ species: map.species.id, seed: "save" }), [
       { kind: "advanceDays", days: 40 },
       { kind: "catchWild" },
     ]).state;
@@ -554,7 +553,7 @@ describe("saves", () => {
   });
 
   it("refuses a save from a newer build rather than corrupting it", () => {
-    const file = saveRanch(createRanch(map, { seed: "future" }));
+    const file = saveRanch(createRanch({ species: map.species.id, seed: "future" }));
     expect(() => loadRanch({ ...file, version: SAVE_VERSION + 5 })).toThrow(/newer version/);
   });
 
@@ -564,6 +563,6 @@ describe("saves", () => {
   });
 
   it("carries a version so a migration can be added without a redesign", () => {
-    expect(saveRanch(createRanch(map, { seed: "versioned" })).version).toBe(SAVE_VERSION);
+    expect(saveRanch(createRanch({ species: map.species.id, seed: "versioned" })).version).toBe(SAVE_VERSION);
   });
 });

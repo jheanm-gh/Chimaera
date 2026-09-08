@@ -10,10 +10,9 @@
 
 import { campaignFor, chapterProgress, CHAPTER_COUNT, itemById } from "@chimaera/game";
 import type { RanchController } from "../useRanch.js";
-import { map } from "../useRanch.js";
 
 export function CommissionView({ ranch }: { ranch: RanchController }) {
-  const chapters = campaignFor(map);
+  const chapters = campaignFor(ranch.map);
   const progress = chapterProgress(ranch.state.campaign, chapters);
   const met = new Set(ranch.state.campaign.met);
 

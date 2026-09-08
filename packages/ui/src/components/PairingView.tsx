@@ -1,11 +1,11 @@
-import { fertilePairs, ITEMS, phenotypeOf, projectedInbreeding } from "@chimaera/game";
+import { fertilePairs, ITEMS, mapOf, phenotypeOf, projectedInbreeding } from "@chimaera/game";
 import type { Creature } from "@chimaera/game";
 import { inbreedingPenalty, knowledgeFromGenome, predictOffspring } from "@chimaera/genetics";
 import type { LocusId, OffspringPrediction } from "@chimaera/genetics";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useMemo, useState } from "react";
 import type { RanchController } from "../useRanch.js";
-import { map } from "../useRanch.js";
+
 import { CreatureFigure } from "./CreatureFigure.js";
 
 interface Props {
@@ -13,38 +13,55 @@ interface Props {
   readonly mode: PaletteMode;
 }
 
-const DEFAULT_TARGETS: LocusId[] = ["DORSAL", "LANTERN"];
-
 export function PairingView({ ranch, mode }: Props) {
-  const { sires, dams } = fertilePairs(ranch.state);
+  const { sires, dams: allDams } = fertilePairs(ranch.state);
   const [sireId, setSireId] = useState<string>(() => sires[0]?.id ?? "");
-  const [damId, setDamId] = useState<string>(() => dams[0]?.id ?? "");
-  const [targets, setTargets] = useState<LocusId[]>(DEFAULT_TARGETS);
+  const [damId, setDamId] = useState<string>(() => allDams[0]?.id ?? "");
+  const [targets, setTargets] = useState<LocusId[] | undefined>(undefined);
   const [items, setItems] = useState<string[]>([]);
 
   const sire = sires.find((c) => c.id === sireId) ?? sires[0];
+  // Only dams of the sire's species: a cross-species pairing is refused by the
+  // reducer, and offering it in the chooser would be an invitation to a
+  // rejection message.
+  const dams = sire ? allDams.filter((c) => c.species === sire.species) : allDams;
   const dam = dams.find((c) => c.id === damId) ?? dams[0];
+  const map = sire ? mapOf(sire) : ranch.map;
+  // Two loci to start with, chosen from whatever species this is: the first
+  // visible form locus and the first one carrying a lethal, which is the pair a
+  // breeder wants on screen before anything else.
+  const defaultTargets = useMemo<LocusId[]>(() => {
+    const lethal = map.loci.find((locus) => locus.alleles.some((allele) => allele.lethal));
+    // A locus that is not the lethal one: on some species the first visible
+    // form gene *is* the lethal, and offering the same locus twice would leave
+    // the predictor showing one column on a screen built for two.
+    const form = map.loci.find(
+      (locus) => locus.mode.kind === "dominance" && locus.trait !== undefined && locus.id !== lethal?.id,
+    );
+    return [lethal?.id, form?.id].filter((id): id is LocusId => id !== undefined);
+  }, [map]);
+  const chosenTargets = targets ?? defaultTargets;
 
   const f = sire && dam ? projectedInbreeding(ranch.state, sire.id, dam.id) : 0;
   const penalty = inbreedingPenalty(f);
 
   const prediction = useMemo<OffspringPrediction | undefined>(() => {
-    if (!sire || !dam || targets.length === 0) return undefined;
+    if (!sire || !dam || chosenTargets.length === 0) return undefined;
     try {
       return predictOffspring(
-        knowledgeFromGenome(sire.genome, map, phenotypeOf(sire, map), sire.revealed, {
+        knowledgeFromGenome(sire.genome, map, phenotypeOf(sire), sire.revealed, {
           revealPhase: sire.phaseKnown,
         }),
-        knowledgeFromGenome(dam.genome, map, phenotypeOf(dam, map), dam.revealed, {
+        knowledgeFromGenome(dam.genome, map, phenotypeOf(dam), dam.revealed, {
           revealPhase: dam.phaseKnown,
         }),
         map,
-        targets,
+        chosenTargets,
       );
     } catch {
       return undefined;
     }
-  }, [sire, dam, targets]);
+  }, [sire, dam, map, chosenTargets]);
 
   const breedingItems = ITEMS.filter(
     (item) => item.effect.kind === "breeding" && (ranch.state.inventory.items[item.id] ?? 0) > 0,
@@ -129,14 +146,15 @@ export function PairingView({ ranch, mode }: Props) {
               <label key={locus.id}>
                 <input
                   type="checkbox"
-                  checked={targets.includes(locus.id)}
-                  disabled={!targets.includes(locus.id) && targets.length >= 6}
+                  checked={chosenTargets.includes(locus.id)}
+                  disabled={!chosenTargets.includes(locus.id) && chosenTargets.length >= 6}
                   onChange={(event) =>
-                    setTargets((current) =>
-                      event.target.checked
-                        ? [...current, locus.id]
-                        : current.filter((id) => id !== locus.id),
-                    )
+                    setTargets((current) => {
+                      const base = current ?? defaultTargets;
+                      return event.target.checked
+                        ? [...base, locus.id]
+                        : base.filter((id) => id !== locus.id);
+                    })
                   }
                 />
                 {locus.name}
@@ -216,7 +234,7 @@ function ParentChooser({
         <select value={value} onChange={(event) => onChange(event.target.value)}>
           {options.map((option) => (
             <option key={option.id} value={option.id}>
-              {option.name} — {option.revealed.length}/{map.loci.length} read
+              {option.name} — {option.revealed.length}/{mapOf(option).loci.length} read
             </option>
           ))}
         </select>

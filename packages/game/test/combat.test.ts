@@ -54,7 +54,7 @@ function run(state: RanchState, actions: readonly Action[]): { state: RanchState
   let current = state;
   const events: GameEvent[] = [];
   for (const action of actions) {
-    const result = applyAction(current, action, map);
+    const result = applyAction(current, action);
     current = result.state;
     events.push(...result.events);
   }
@@ -296,7 +296,7 @@ describe("regions (§4)", () => {
 
 describe("expeditions", () => {
   function ready(seed: string): RanchState {
-    const ranch = createRanch(map, { seed, founders: 6, capacity: 20, });
+    const ranch = createRanch({ species: map.species.id, seed, founders: 6, capacity: 20, });
     // Give everyone a fighting chance so the run does not end at node one.
     return {
       ...ranch,
@@ -314,37 +314,37 @@ describe("expeditions", () => {
   }
 
   it("is gated behind a League win, so a first run cannot wipe the starting herd", () => {
-    const green = createRanch(map, { seed: "gated", founders: 6 });
+    const green = createRanch({ species: map.species.id, seed: "gated", founders: 6 });
     const ids = activeCreatures(green).map((c) => c.id).slice(0, 3);
-    expect(applyAction(green, { kind: "enterExpedition", team: ids }, map).events[0]).toMatchObject({
+    expect(applyAction(green, { kind: "enterExpedition", team: ids }).events[0]).toMatchObject({
       kind: "blocked",
     });
     const experienced: RanchState = { ...green, leagueTier: 1 };
-    expect(applyAction(experienced, { kind: "enterExpedition", team: ids }, map).state.expedition).toBeDefined();
+    expect(applyAction(experienced, { kind: "enterExpedition", team: ids }).state.expedition).toBeDefined();
   });
 
   it("takes exactly three, and refuses hatchlings", () => {
     const ranch = ready("team-size");
     const ids = activeCreatures(ranch).map((c) => c.id);
     expect(
-      applyAction(ranch, { kind: "enterExpedition", team: ids.slice(0, 2) }, map).events[0],
+      applyAction(ranch, { kind: "enterExpedition", team: ids.slice(0, 2) }).events[0],
     ).toMatchObject({ kind: "blocked" });
     expect(
-      applyAction(ranch, { kind: "enterExpedition", team: ids.slice(0, EXPEDITION_TEAM_SIZE) }, map).state.expedition,
+      applyAction(ranch, { kind: "enterExpedition", team: ids.slice(0, EXPEDITION_TEAM_SIZE) }).state.expedition,
     ).toBeDefined();
   });
 
   it("moves node to node, spending days and collecting findings", () => {
     const ranch = ready("walk");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
-    let state = applyAction(ranch, { kind: "enterExpedition", team: ids, regionSeed: "fixed-walk" }, map).state;
+    let state = applyAction(ranch, { kind: "enterExpedition", team: ids, regionSeed: "fixed-walk" }).state;
     const startDay = state.day;
 
     let steps = 0;
     while (state.expedition?.status === "active" && steps < 12) {
       const next = optionsFrom(state.expedition.region, state.expedition.at)[0];
       if (!next) break;
-      state = applyAction(state, { kind: "expeditionMove", nodeId: next.id }, map).state;
+      state = applyAction(state, { kind: "expeditionMove", nodeId: next.id }).state;
       steps++;
     }
     expect(steps).toBeGreaterThan(0);
@@ -356,28 +356,28 @@ describe("expeditions", () => {
   it("refuses a move to a node that is not adjacent", () => {
     const ranch = ready("adjacency");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
-    const state = applyAction(ranch, { kind: "enterExpedition", team: ids }, map).state;
-    const result = applyAction(state, { kind: "expeditionMove", nodeId: "n5-0" }, map);
+    const state = applyAction(ranch, { kind: "enterExpedition", team: ids }).state;
+    const result = applyAction(state, { kind: "expeditionMove", nodeId: "n5-0" });
     expect(result.events[0]).toMatchObject({ kind: "blocked" });
   });
 
   it("takes creatures away permanently when they fall", () => {
     // A deliberately hopeless team, sent deep.
-    const ranch = createRanch(map, { seed: "permadeath", founders: 6, capacity: 20 });
+    const ranch = createRanch({ species: map.species.id, seed: "permadeath", founders: 6, capacity: 20 });
     const doomed: RanchState = {
       ...ranch,
       leagueTier: 1,
       creatures: ranch.creatures.map((c) => ({ ...c, achieved: { speed: 4, vigour: 4, focus: 4 } })),
     };
     const ids = activeCreatures(doomed).map((c) => c.id).slice(0, 3);
-    let state = applyAction(doomed, { kind: "enterExpedition", team: ids, regionSeed: "grave" }, map).state;
+    let state = applyAction(doomed, { kind: "enterExpedition", team: ids, regionSeed: "grave" }).state;
     const events: GameEvent[] = [];
 
     let steps = 0;
     while (state.expedition?.status === "active" && steps < 12) {
       const next = optionsFrom(state.expedition.region, state.expedition.at)[0];
       if (!next) break;
-      const result = applyAction(state, { kind: "expeditionMove", nodeId: next.id }, map);
+      const result = applyAction(state, { kind: "expeditionMove", nodeId: next.id });
       state = result.state;
       events.push(...result.events);
       steps++;
@@ -395,18 +395,18 @@ describe("expeditions", () => {
   it("lets the player withdraw and keep everything found", () => {
     const ranch = ready("withdraw");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
-    let state = applyAction(ranch, { kind: "enterExpedition", team: ids, regionSeed: "quit" }, map).state;
+    let state = applyAction(ranch, { kind: "enterExpedition", team: ids, regionSeed: "quit" }).state;
     const before = state.inventory.motes;
 
     for (let i = 0; i < 3 && state.expedition?.status === "active"; i++) {
       const next = optionsFrom(state.expedition.region, state.expedition.at)[0];
       if (!next) break;
-      state = applyAction(state, { kind: "expeditionMove", nodeId: next.id }, map).state;
+      state = applyAction(state, { kind: "expeditionMove", nodeId: next.id }).state;
     }
     if (!state.expedition) return; // The run ended on its own; nothing to test.
 
     const carried = state.expedition.loot.motes;
-    const result = applyAction(state, { kind: "expeditionWithdraw" }, map);
+    const result = applyAction(state, { kind: "expeditionWithdraw" });
     expect(result.state.expedition).toBeUndefined();
     expect(result.state.inventory.motes).toBe(before + carried);
     expect(result.events.some((e) => e.kind === "expeditionEnded")).toBe(true);
@@ -415,8 +415,8 @@ describe("expeditions", () => {
   it("will not start a second expedition while one is running", () => {
     const ranch = ready("one-at-a-time");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
-    const state = applyAction(ranch, { kind: "enterExpedition", team: ids }, map).state;
-    expect(applyAction(state, { kind: "enterExpedition", team: ids }, map).events[0]).toMatchObject({
+    const state = applyAction(ranch, { kind: "enterExpedition", team: ids }).state;
+    expect(applyAction(state, { kind: "enterExpedition", team: ids }).events[0]).toMatchObject({
       kind: "blocked",
     });
   });
@@ -424,7 +424,7 @@ describe("expeditions", () => {
 
 describe("the League", () => {
   function fit(seed: string): RanchState {
-    const ranch = createRanch(map, { seed, founders: 4 });
+    const ranch = createRanch({ species: map.species.id, seed, founders: 4 });
     return {
       ...ranch,
       creatures: ranch.creatures.map((c) => ({ ...c, achieved: { speed: 80, vigour: 90, focus: 80 } })),
@@ -434,10 +434,10 @@ describe("the League", () => {
   it("opens one tier at a time", () => {
     const ranch = fit("ladder");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
-    expect(applyAction(ranch, { kind: "bout", team: ids, tier: 3 }, map).events[0]).toMatchObject({
+    expect(applyAction(ranch, { kind: "bout", team: ids, tier: 3 }).events[0]).toMatchObject({
       kind: "blocked",
     });
-    const first = applyAction(ranch, { kind: "bout", team: ids, tier: 1 }, map);
+    const first = applyAction(ranch, { kind: "bout", team: ids, tier: 1 });
     expect(first.events[0]).toMatchObject({ kind: "battle" });
   });
 
@@ -457,10 +457,10 @@ describe("the League", () => {
     const ranch = fit("evaluate");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
     // Nothing cleared: the tool is unavailable, which is the point of clearing.
-    expect(evaluateLineage(ranch, ids, 1, 50, map)).toBeUndefined();
+    expect(evaluateLineage(ranch, ids, 1, 50)).toBeUndefined();
 
     const cleared: RanchState = { ...ranch, leagueTier: 2 };
-    const report = evaluateLineage(cleared, ids, 2, 50, map);
+    const report = evaluateLineage(cleared, ids, 2, 50);
     expect(report).toBeDefined();
     expect(report?.winRate).toBeGreaterThanOrEqual(0);
     expect(report?.winRate).toBeLessThanOrEqual(1);
@@ -471,7 +471,7 @@ describe("the League", () => {
     const ranch = fit("safe");
     const ids = activeCreatures(ranch).map((c) => c.id).slice(0, 3);
     let state = ranch;
-    for (let i = 0; i < 6; i++) state = applyAction(state, { kind: "bout", team: ids, tier: 1 }, map).state;
+    for (let i = 0; i < 6; i++) state = applyAction(state, { kind: "bout", team: ids, tier: 1 }).state;
     for (const id of ids) {
       expect(state.creatures.some((c: Creature) => c.id === id)).toBe(true);
     }
@@ -480,28 +480,25 @@ describe("the League", () => {
 
 describe("equipment ownership", () => {
   it("will not put the same harness on two creatures", () => {
-    const ranch = createRanch(map, { seed: "gear", startingItems: { "harness-2": 1 } });
+    const ranch = createRanch({ species: map.species.id, seed: "gear", startingItems: { "harness-2": 1 } });
     const [first, second] = activeCreatures(ranch);
     const equipped = applyAction(
       ranch,
       { kind: "setEquipment", id: (first as Creature).id, equipment: ["harness-2"] },
-      map,
     ).state;
     const clash = applyAction(
       equipped,
       { kind: "setEquipment", id: (second as Creature).id, equipment: ["harness-2"] },
-      map,
     );
     expect(clash.events[0]).toMatchObject({ kind: "blocked" });
   });
 
   it("refuses two items in the same slot", () => {
-    const ranch = createRanch(map, { seed: "slots", startingItems: { "harness-1": 1, "harness-2": 1 } });
+    const ranch = createRanch({ species: map.species.id, seed: "slots", startingItems: { "harness-1": 1, "harness-2": 1 } });
     const [first] = activeCreatures(ranch);
     const result = applyAction(
       ranch,
       { kind: "setEquipment", id: (first as Creature).id, equipment: ["harness-1", "harness-2"] },
-      map,
     );
     expect(result.events[0]).toMatchObject({ kind: "blocked", reason: "One item per slot." });
   });

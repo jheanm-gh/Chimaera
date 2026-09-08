@@ -6,6 +6,7 @@ import {
   HABITATS,
   ITEMS,
   itemById,
+  mapOf,
   phenotypeOf,
   previewBranches,
   TRAINING,
@@ -20,7 +21,7 @@ import { genotypeAt } from "@chimaera/genetics";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useState } from "react";
 import type { RanchController } from "../useRanch.js";
-import { map } from "../useRanch.js";
+
 import { CreatureFigure } from "./CreatureFigure.js";
 import { StatBar } from "./StatBar.js";
 
@@ -34,7 +35,11 @@ interface Props {
 export function CreaturePanel({ creature, ranch, mode, onSelectRelative }: Props) {
   const [suppressing, setSuppressing] = useState<string[]>([]);
   const [lensLocus, setLensLocus] = useState<string>("DORSAL");
-  const phenotype = phenotypeOf(creature, map);
+  // Per creature, not per ranch: a station can hold mixed stock, and reading a
+  // Silt-Adder's genome through a Quillfen's loci would be nonsense drawn
+  // confidently.
+  const map = mapOf(creature);
+  const phenotype = phenotypeOf(creature);
   const stats = currentStats(creature, phenotype, map);
   const reached = achievement(creature, phenotype, map);
   const context = evolutionContext(creature, phenotype, map);

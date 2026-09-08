@@ -103,14 +103,14 @@ describe("the campaign is authored for every species", () => {
 // ---------------------------------------------------------------------------
 
 function bot(seed: string, rounds: number): { state: RanchState; events: GameEvent[] } {
-  let state = createRanch(map, {
+  let state = createRanch({ species: map.species.id,
     seed,
     motes: 4000,
     startingItems: { "field-lens": 8 },
   });
   const events: GameEvent[] = [];
   const step = (action: Action): void => {
-    const result = applyAction(state, action, map);
+    const result = applyAction(state, action);
     state = result.state;
     events.push(...result.events);
   };
@@ -196,11 +196,11 @@ describe("chapter order is enforced", () => {
 // ---------------------------------------------------------------------------
 
 function fresh(): RanchState {
-  return createRanch(map, { seed: "objective-fixtures" });
+  return createRanch({ species: map.species.id, seed: "objective-fixtures" });
 }
 
 function view(state: RanchState): CampaignView {
-  return campaignView(state, map);
+  return campaignView(state);
 }
 
 function chapter(id: string): Chapter {
@@ -465,7 +465,7 @@ describe("chapter 6: inbreeding", () => {
     const test = objective("c6", "c6-herd").test;
     // A brand new ranch has a mean F of zero and six creatures would still not
     // count: there is no line to have kept healthy.
-    const start = createRanch(map, { seed: "herd", founders: 8 });
+    const start = createRanch({ species: map.species.id, seed: "herd", founders: 8 });
     expect(test(view(start), [])).toBe(false);
   });
 });
@@ -601,7 +601,7 @@ describe("objectives read phenotypes, never genotypes directly", () => {
     const state = fresh();
     const creature = state.creatures[0];
     if (!creature) throw new Error("empty ranch");
-    const fromView = campaignView(state, map).phenotype(creature);
+    const fromView = campaignView(state).phenotype(creature);
     expect(fromView.traits).toEqual(expressPhenotype(creature.genome, map).traits);
   });
 });

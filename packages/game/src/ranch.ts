@@ -1,14 +1,16 @@
 /**
  * The ranch: state, actions, and the day loop.
  *
- * `applyAction(state, action, map)` is a pure function returning a new state
- * and a list of events. Nothing here mutates, reads a clock, or touches the
+ * `applyAction(state, action)` is a pure function returning a new state and a
+ * list of events. Every creature carries its own species, and the gene map is
+ * resolved from that at the point of use (see `bestiary.ts`), so a ranch can
+ * hold mixed stock without any call site having to be handed the right map. Nothing here mutates, reads a clock, or touches the
  * network. The RNG state travels inside the ranch, so a save file plus a list
  * of actions reproduces a playthrough exactly — which is what Daily Genome,
  * Trial scoring and bug reports all need.
  */
 
-import type { GeneMap, Genome, LocusId, MutationRates, Phenotype, StatId } from "@chimaera/genetics";
+import type { GeneMap, Genome, LocusId, MutationRates, Phenotype, SpeciesId, StatId } from "@chimaera/genetics";
 import {
   BASELINE_MUTATION,
   breed,
@@ -17,6 +19,7 @@ import {
   DEFAULT_EPIGENETICS,
   deriveOffspringMarks,
   expressPhenotype,
+  geneMapById,
   genotypeAt,
   NO_MUTAGENS,
   Pedigree,
@@ -26,6 +29,7 @@ import {
 } from "@chimaera/genetics";
 import type { MutagenLoad, Rng } from "@chimaera/genetics";
 import { equipmentById } from "./combat.js";
+import { mapOf, homeMap } from "./bestiary.js";
 import { advanceCampaign, buildCampaign, NEW_CAMPAIGN } from "./campaign.js";
 import type { CampaignView, Chapter } from "./campaign.js";
 import { itemById } from "./content.js";
@@ -51,11 +55,11 @@ import type {
 } from "./types.js";
 
 /**
- * v2 added `campaign`. The migration in `save.ts` fills it in, which is the
- * whole reason the migration chain was written before there was anything to
- * migrate.
+ * v2 added `campaign`; v3 added `homeSpecies` and named the species living in
+ * an expedition's region. The migrations in `save.ts` fill both in, which is
+ * the whole reason the chain was written before there was anything to migrate.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** Day costs, so that every meaningful action moves the calendar (§2.1). */
 export const DAY_COST = { breed: 1, tend: 1, catchWild: 3 } as const;
@@ -71,10 +75,10 @@ const phenotypeCache = new WeakMap<Genome, Phenotype>();
  * two drift apart after a genetics balance patch, and a creature whose picture
  * disagrees with its genome is the worst possible bug in this game.
  */
-export function phenotypeOf(creature: Creature, map: GeneMap): Phenotype {
+export function phenotypeOf(creature: Creature): Phenotype {
   const cached = phenotypeCache.get(creature.genome);
   if (cached) return cached;
-  const phenotype = expressPhenotype(creature.genome, map, {
+  const phenotype = expressPhenotype(creature.genome, mapOf(creature), {
     inbreedingDepression: inbreedingDepressionFor(creature.inbreeding),
   });
   phenotypeCache.set(creature.genome, phenotype);
@@ -111,13 +115,16 @@ function makeName(rng: { pick: <T>(items: readonly T[]) => T; bool: (p: number) 
 
 export interface NewRanchOptions {
   readonly seed: string;
+  /** The station's posting. Founders and wild stock come from this species. */
+  readonly species: SpeciesId;
   readonly founders?: number;
   readonly capacity?: number;
   readonly motes?: number;
   readonly startingItems?: Readonly<Record<string, number>>;
 }
 
-export function createRanch(map: GeneMap, options: NewRanchOptions): RanchState {
+export function createRanch(options: NewRanchOptions): RanchState {
+  const map = geneMapById(options.species);
   const founders = options.founders ?? 4;
   const rng = createRng(`${options.seed}:founders`);
   const creatures: Creature[] = [];
@@ -155,6 +162,7 @@ export function createRanch(map: GeneMap, options: NewRanchOptions): RanchState 
   return {
     version: SAVE_VERSION,
     seed: options.seed,
+    homeSpecies: map.species.id,
     rng: createRng(options.seed).state(),
     rngCursor: 0,
     day: 0,
@@ -293,8 +301,8 @@ export function campaignFor(map: GeneMap): readonly Chapter[] {
 }
 
 /** Everything the campaign's predicates are allowed to see. */
-export function campaignView(state: RanchState, map: GeneMap): CampaignView {
-  return { state, map, phenotype: (creature) => phenotypeOf(creature, map) };
+export function campaignView(state: RanchState): CampaignView {
+  return { state, map: homeMap(state), phenotype: phenotypeOf };
 }
 
 /**
@@ -304,12 +312,12 @@ export function campaignView(state: RanchState, map: GeneMap): CampaignView {
  * breeding and bouts make internally — so a single breed cannot tick an
  * objective twice, and the events land in the same batch the player sees.
  */
-function withCampaign(result: ActionResult, map: GeneMap): ActionResult {
+function withCampaign(result: ActionResult): ActionResult {
   const outcome = advanceCampaign(
     result.state.campaign,
-    campaignView(result.state, map),
+    campaignView(result.state),
     result.events,
-    campaignFor(map),
+    campaignFor(homeMap(result.state)),
   );
   if (outcome.events.length === 0) return result;
 
@@ -328,16 +336,16 @@ function withCampaign(result: ActionResult, map: GeneMap): ActionResult {
   };
 }
 
-export function applyAction(state: RanchState, action: Action, map: GeneMap): ActionResult {
-  return withCampaign(dispatch(state, action, map), map);
+export function applyAction(state: RanchState, action: Action): ActionResult {
+  return withCampaign(dispatch(state, action));
 }
 
-function dispatch(state: RanchState, action: Action, map: GeneMap): ActionResult {
+function dispatch(state: RanchState, action: Action): ActionResult {
   switch (action.kind) {
     case "advanceDays":
-      return advance(state, Math.max(0, Math.floor(action.days)), map);
+      return advance(state, Math.max(0, Math.floor(action.days)));
     case "breed":
-      return doBreed(state, action.sireId, action.damId, action.items ?? [], map);
+      return doBreed(state, action.sireId, action.damId, action.items ?? []);
     case "setDiet":
       return patch(state, action.id, (c) => ({ ...c, diet: action.diet }));
     case "setHabitat":
@@ -347,17 +355,17 @@ function dispatch(state: RanchState, action: Action, map: GeneMap): ActionResult
     case "rename":
       return renameCreature(state, action.id, action.name);
     case "tend":
-      return doTend(state, action.id, map);
+      return doTend(state, action.id);
     case "holdItem":
       return doHoldItem(state, action.id, action.item);
     case "useItem":
-      return doUseItem(state, action.id, action.item, action.locus, map);
+      return doUseItem(state, action.id, action.item, action.locus);
     case "archive":
       return doArchive(state, action.id);
     case "release":
       return doRelease(state, action.id);
     case "catchWild":
-      return doCatchWild(state, map);
+      return doCatchWild(state, action.species);
     case "setRole":
       return patch(state, action.id, (c) => ({ ...c, role: action.role }));
     case "setStance":
@@ -365,13 +373,13 @@ function dispatch(state: RanchState, action: Action, map: GeneMap): ActionResult
     case "setEquipment":
       return doSetEquipment(state, action.id, action.equipment);
     case "bout":
-      return runBout(state, action.team, action.tier, map, advance);
+      return runBout(state, action.team, action.tier, advance);
     case "enterExpedition":
-      return enterExpedition(state, action.team, action.regionSeed, map);
+      return enterExpedition(state, action.team, action.regionSeed, action.species);
     case "expeditionMove":
-      return expeditionMove(state, action.nodeId, map, advance);
+      return expeditionMove(state, action.nodeId, advance);
     case "expeditionWithdraw":
-      return expeditionWithdraw(state, map, advance);
+      return expeditionWithdraw(state, advance);
   }
 }
 
@@ -431,7 +439,7 @@ function renameCreature(state: RanchState, id: CreatureId, name: string): Action
  * two modules would otherwise form a cycle, and the day loop is the one piece
  * both of them genuinely need.
  */
-export function advance(state: RanchState, days: number, map: GeneMap): ActionResult {
+export function advance(state: RanchState, days: number): ActionResult {
   let current = state;
   const events: GameEvent[] = [];
 
@@ -442,7 +450,8 @@ export function advance(state: RanchState, days: number, map: GeneMap): ActionRe
         creatures.push(creature);
         continue;
       }
-      const phenotype = phenotypeOf(creature, map);
+      const map = mapOf(creature);
+      const phenotype = phenotypeOf(creature);
       const outcome = tickCreature(creature, phenotype, map);
       let next = outcome.creature;
 
@@ -540,12 +549,17 @@ function doBreed(
   sireId: CreatureId,
   damId: CreatureId,
   itemIds: readonly string[],
-  map: GeneMap,
 ): ActionResult {
   const sire = findCreature(state, sireId);
   const dam = findCreature(state, damId);
   if (!sire || !dam) return blocked(state, "Both parents must be on the ranch.");
   if (sire.id === dam.id) return blocked(state, "A creature cannot breed with itself.");
+  // Two species, two gene maps, two chromosome sets. There is no hybrid to
+  // express and no honest way to invent one, so the pairing is simply refused.
+  if (sire.species !== dam.species) {
+    return blocked(state, "A Quillfen and a Silt-Adder are not going to produce anything. Pair like with like.");
+  }
+  const map = mapOf(sire);
   if (sire.sex !== "male" || dam.sex !== "female") return blocked(state, "Pair a male with a female.");
   if (!isFertile(sire) || !isFertile(dam)) {
     return blocked(state, "Both parents must be adults. Fertility closes when they become elders.");
@@ -601,8 +615,8 @@ function doBreed(
     const phenotype = expressPhenotype(result.genome, map, {
       inbreedingDepression: inbreedingDepressionFor(f),
     });
-    const sirePhenotype = phenotypeOf(sire, map);
-    const damPhenotype = phenotypeOf(dam, map);
+    const sirePhenotype = phenotypeOf(sire);
+    const damPhenotype = phenotypeOf(dam);
     const marks = deriveOffspringMarks(
       { marks: sire.marks, achievement: achievement(sire, sirePhenotype, map) },
       { marks: dam.marks, achievement: achievement(dam, damPhenotype, map) },
@@ -681,13 +695,13 @@ function doBreed(
         }
       : afterBreed;
 
-  const advanced = advance(accelerated, DAY_COST.breed, map);
+  const advanced = advance(accelerated, DAY_COST.breed);
   return { state: advanced.state, events: [...events, ...advanced.events] };
 }
 
 // --- Care ------------------------------------------------------------------
 
-function doTend(state: RanchState, id: CreatureId, map: GeneMap): ActionResult {
+function doTend(state: RanchState, id: CreatureId): ActionResult {
   const creature = findCreature(state, id);
   if (!creature) return blocked(state, "That creature is not on the ranch.");
   if (creature.stage === "egg") return blocked(state, "There is nothing to tend yet.");
@@ -698,7 +712,7 @@ function doTend(state: RanchState, id: CreatureId, map: GeneMap): ActionResult {
       c.id === id ? { ...c, bond: Math.min(100, c.bond + 9) } : c,
     ),
   };
-  return advance(tended, DAY_COST.tend, map);
+  return advance(tended, DAY_COST.tend);
 }
 
 /** Item effects that make sense carried around rather than consumed. */
@@ -722,10 +736,10 @@ function doUseItem(
   id: CreatureId,
   itemId: string,
   locus: LocusId | undefined,
-  map: GeneMap,
 ): ActionResult {
   const creature = findCreature(state, id);
   if (!creature) return blocked(state, "That creature is not on the ranch.");
+  const map = mapOf(creature);
   if ((state.inventory.items[itemId] ?? 0) <= 0) return blocked(state, `You have no ${itemById(itemId).name}.`);
   const item = itemById(itemId);
   const events: GameEvent[] = [];
@@ -768,7 +782,7 @@ function doUseItem(
       break;
     case "conditioning": {
       const effect = item.effect;
-      const phenotype = phenotypeOf(creature, map);
+      const phenotype = phenotypeOf(creature);
       const trait = map.polygenicTraits.find((t) => t.id === effect.stat);
       if (!trait) return blocked(state, "This species does not have that stat.");
       if (creature.stage === "egg") return blocked(state, "There is nothing to feed yet.");
@@ -799,7 +813,12 @@ function doUseItem(
       return blocked(state, "That item is not used this way.");
   }
 
-  const offspring = spreadTo === undefined ? [] : state.creatures.filter((c) => c.sireId === id || c.damId === id);
+  const offspring =
+    spreadTo === undefined
+      ? []
+      : state.creatures.filter(
+          (c) => (c.sireId === id || c.damId === id) && c.species === creature.species,
+        );
   if (spreadTo !== undefined) {
     for (const child of offspring) events.push({ kind: "revealed", id: child.id, loci: [spreadTo] });
   }
@@ -853,10 +872,13 @@ function doRelease(state: RanchState, id: CreatureId): ActionResult {
   };
 }
 
-function doCatchWild(state: RanchState, map: GeneMap): ActionResult {
+function doCatchWild(state: RanchState, species?: SpeciesId): ActionResult {
   if (state.creatures.filter((c) => c.status === "active").length >= state.capacity) {
     return blocked(state, "The ranch is full.");
   }
+  // The fen outside the station is the home species' fen. Other stock comes
+  // from expeditions and the exchange, not from a walk to the reedbank.
+  const map = species === undefined ? homeMap(state) : geneMapById(species);
   const { rng: catchRng, cursor } = rollFor(state, "wild");
   const genome = randomWildGenome(map, catchRng);
   const phenotype = expressPhenotype(genome, map);
@@ -883,7 +905,7 @@ function doCatchWild(state: RanchState, map: GeneMap): ActionResult {
     compendium: recordEpistasis(state.compendium, phenotype.epistasisActive),
   };
 
-  const advanced = advance(caught, DAY_COST.catchWild, map);
+  const advanced = advance(caught, DAY_COST.catchWild);
   return {
     state: advanced.state,
     events: [{ kind: "caught", id, name: creature.name }, ...advanced.events],
@@ -916,11 +938,11 @@ function recordEpistasis(
  * Alleles the player has actually *seen* revealed, across every creature they
  * have owned. The Compendium's completion percentage counts these.
  */
-export function knownAlleles(state: RanchState, map: GeneMap): Set<string> {
+export function knownAlleles(state: RanchState): Set<string> {
   const known = new Set(state.compendium.seenAlleles);
   for (const creature of [...state.creatures, ...state.archive]) {
     for (const locusId of creature.revealed) {
-      for (const allele of genotypeAt(creature.genome, map.locus(locusId))) known.add(allele);
+      for (const allele of genotypeAt(creature.genome, mapOf(creature).locus(locusId))) known.add(allele);
     }
   }
   return known;
@@ -941,8 +963,9 @@ export function fertilePairs(state: RanchState): { sires: Creature[]; dams: Crea
 }
 
 /** Lethal alleles a creature carries. Only reportable for revealed loci. */
-export function knownCarriedLethals(creature: Creature, map: GeneMap): string[] {
+export function knownCarriedLethals(creature: Creature): string[] {
   const revealed = new Set(creature.revealed);
+  const map = mapOf(creature);
   return carriedLethals(creature.genome, map)
     .filter((hit) => revealed.has(hit.locus))
     .map((hit) => `${map.locus(hit.locus).name}: ${map.allele(hit.locus, hit.allele).name}`);

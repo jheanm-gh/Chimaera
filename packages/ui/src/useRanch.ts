@@ -6,13 +6,12 @@
  * journal of events, and autosave. Nothing in the UI computes game rules.
  */
 
-import { applyAction, createRanch } from "@chimaera/game";
+import { applyAction, createRanch, homeMap } from "@chimaera/game";
 import type { Action, GameEvent, RanchState } from "@chimaera/game";
-import { geneMapFor, QUILLFEN } from "@chimaera/genetics";
+import type { SpeciesId } from "@chimaera/genetics";
+import { STARTER_TRIO } from "@chimaera/genetics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AUTOSAVE_SLOT, loadFromSlot, saveToSlot } from "./db.js";
-
-export const map = geneMapFor(QUILLFEN);
 
 export interface JournalEntry {
   readonly key: number;
@@ -24,17 +23,21 @@ const JOURNAL_LIMIT = 240;
 
 export interface RanchController {
   readonly state: RanchState;
+  /** The station's own gene map: the fen outside, and the campaign's species. */
+  readonly map: ReturnType<typeof homeMap>;
   readonly journal: readonly JournalEntry[];
   readonly ready: boolean;
   readonly lastBlocked: string | undefined;
   dispatch(action: Action): readonly GameEvent[];
   replace(state: RanchState): void;
-  reset(seed: string): void;
+  reset(seed: string, species: SpeciesId): void;
   clearBlocked(): void;
 }
 
 export function useRanch(): RanchController {
-  const [state, setState] = useState<RanchState>(() => createRanch(map, { seed: defaultSeed() }));
+  const [state, setState] = useState<RanchState>(() =>
+    createRanch({ seed: defaultSeed(), species: STARTER_TRIO[0] ?? "quillfen" }),
+  );
   const [journal, setJournal] = useState<readonly JournalEntry[]>([]);
   const [ready, setReady] = useState(false);
   const [lastBlocked, setLastBlocked] = useState<string | undefined>(undefined);
@@ -82,7 +85,7 @@ export function useRanch(): RanchController {
     (action: Action): readonly GameEvent[] => {
       let events: readonly GameEvent[] = [];
       setState((current) => {
-        const result = applyAction(current, action, map);
+        const result = applyAction(current, action);
         events = result.events;
         record(result.events, result.state.day);
         return result.state;
@@ -99,14 +102,15 @@ export function useRanch(): RanchController {
   }, []);
 
   const reset = useCallback(
-    (seed: string) => {
-      replace(createRanch(map, { seed }));
+    (seed: string, species: SpeciesId) => {
+      replace(createRanch({ seed, species }));
     },
     [replace],
   );
 
   return {
     state,
+    map: homeMap(state),
     journal,
     ready,
     lastBlocked,

@@ -12,6 +12,7 @@
 
 import { deserialiseGenome, serialiseGenome } from "@chimaera/genetics";
 import type { SerialisedGenome } from "@chimaera/genetics";
+import { speciesForBiome } from "./bestiary.js";
 import { NEW_CAMPAIGN } from "./campaign.js";
 import { SAVE_VERSION } from "./ranch.js";
 import type { Creature, RanchState } from "./types.js";
@@ -68,7 +69,31 @@ const MIGRATIONS: readonly ((file: SaveFile) => SaveFile)[] = [
   // which is correct: the objectives are re-asked of the state on the next
   // action, and anything that is still true will tick immediately.
   (file) => ({ ...file, state: { ...file.state, campaign: NEW_CAMPAIGN } }),
-  // v2 -> v3 goes here.
+  // v2 -> v3: the ranch learned it was posted somewhere. Every v2 save was a
+  // Quillfen station by construction, and any expedition in progress was in the
+  // Mirefen — but read the biome rather than assuming, because a v2 save was
+  // free to hold a region generated with any biome string.
+  (file) => {
+    const state = file.state as unknown as Record<string, unknown>;
+    const expedition = state.expedition as { region?: { biome?: string; species?: string } } | undefined;
+    const region = expedition?.region;
+    return {
+      ...file,
+      state: {
+        ...file.state,
+        homeSpecies: "quillfen",
+        ...(region
+          ? {
+              expedition: {
+                ...expedition,
+                region: { ...region, species: region.species ?? speciesForBiome(region.biome ?? "") ?? "quillfen" },
+              },
+            }
+          : {}),
+      } as SerialisedRanch,
+    };
+  },
+  // v3 -> v4 goes here.
 ];
 
 function migrate(file: SaveFile): SaveFile {

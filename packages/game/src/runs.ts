@@ -11,8 +11,9 @@
  * matters to a closed herd — unrelated wild stock.
  */
 
-import type { GeneMap, Genome, LocusId } from "@chimaera/genetics";
-import { expressPhenotype, rngFromState, sexOf } from "@chimaera/genetics";
+import type { GeneMap, Genome, LocusId, SpeciesId } from "@chimaera/genetics";
+import { expressPhenotype, geneMapById, rngFromState, sexOf } from "@chimaera/genetics";
+import { mapOf, homeMap, speciesForBiome } from "./bestiary.js";
 import type { CombatantSpec, Role } from "./combat.js";
 import { simulateBattle } from "./combat.js";
 import type { ExpeditionLoot, ExpeditionMember, ExpeditionState } from "./expedition.js";
@@ -45,11 +46,8 @@ function blocked(state: RanchState, reason: string): ActionResult {
  * ceiling filtered through raising and its epigenetic head start — so combat is
  * reading the breeding, exactly as §3 requires.
  */
-export function combatantFor(
-  creature: Creature,
-  map: GeneMap,
-  startingHp?: number,
-): CombatantSpec {
+export function combatantFor(creature: Creature, startingHp?: number): CombatantSpec {
+  const map = mapOf(creature);
   const phenotype = expressPhenotype(creature.genome, map);
   return {
     id: creature.id,
@@ -106,9 +104,11 @@ export function runBout(
   state: RanchState,
   teamIds: readonly CreatureId[],
   tier: number,
-  map: GeneMap,
-  advance: (state: RanchState, days: number, map: GeneMap) => ActionResult,
+  advance: (state: RanchState, days: number) => ActionResult,
 ): ActionResult {
+  // The League is local. Whatever mixed stock you keep, the animals across the
+  // sand are the home fen's.
+  const map = homeMap(state);
   if (state.expedition) return blocked(state, "You are out on an expedition.");
   const team = teamIds.map((id) => state.creatures.find((c) => c.id === id && c.status === "active"));
   if (team.some((c) => !c)) return blocked(state, "Some of that team is not on the ranch.");
@@ -118,7 +118,7 @@ export function runBout(
 
   const entry = leagueTier(tier);
   const { rng, cursor } = rollFor(state, `bout:${tier}`);
-  const mine = (team as Creature[]).map((creature) => combatantFor(creature, map));
+  const mine = (team as Creature[]).map((creature) => combatantFor(creature));
   const theirs = wildOpponents(map, entry.difficulty, Math.max(1, mine.length), rng).specs;
   const result = simulateBattle(mine, theirs, rng);
 
@@ -147,7 +147,7 @@ export function runBout(
     leagueTier: won ? Math.max(state.leagueTier, tier) : state.leagueTier,
     inventory: grantLoot(state.inventory, { ...EMPTY_LOOT, motes: purse, fragments }),
   };
-  const advanced = advance(afterBout, 1, map);
+  const advanced = advance(afterBout, 1);
   return { state: advanced.state, events: [...events, ...advanced.events] };
 }
 
@@ -161,9 +161,9 @@ export function evaluateLineage(
   teamIds: readonly CreatureId[],
   tier: number,
   fights: number,
-  map: GeneMap,
 ): { winRate: number; meanRounds: number; survival: Record<string, number> } | undefined {
   if (tier > state.leagueTier) return undefined;
+  const map = homeMap(state);
   const team = teamIds
     .map((id) => state.creatures.find((c) => c.id === id && c.status === "active"))
     .filter((c): c is Creature => Boolean(c));
@@ -171,7 +171,7 @@ export function evaluateLineage(
 
   const entry = leagueTier(tier);
   const rng = rngFromState(state.rng).fork(`evaluate:${tier}:${state.rngCursor}`);
-  const mine = team.map((creature) => combatantFor(creature, map));
+  const mine = team.map((creature) => combatantFor(creature));
   let wins = 0;
   let rounds = 0;
   const survival: Record<string, number> = Object.fromEntries(team.map((c) => [c.id, 0]));
@@ -199,7 +199,7 @@ export function enterExpedition(
   state: RanchState,
   teamIds: readonly CreatureId[],
   regionSeed: string | undefined,
-  map: GeneMap,
+  target?: SpeciesId,
 ): ActionResult {
   if (state.expedition) return blocked(state, "You are already out.");
   // Gated behind one League win. A first expedition that wipes the starting
@@ -217,11 +217,18 @@ export function enterExpedition(
     return blocked(state, "Hatchlings do not go out. They would not come back.");
   }
 
+  // Where you go decides what lives there — and an expedition is the only way
+  // to bring another species home, which is what makes a closed herd's problem
+  // solvable by travelling rather than by waiting.
+  const destination = geneMapById(target ?? state.homeSpecies);
   const { cursor } = rollFor(state, "expedition");
   const seed = regionSeed ?? `${state.seed}:${state.day}:${cursor}`;
-  const region = generateRegion(seed, { biome: map.species.biome });
+  const region = generateRegion(seed, {
+    biome: destination.species.biome,
+    species: destination.species.id,
+  });
   const members: ExpeditionMember[] = (team as Creature[]).map((creature) => {
-    const spec = combatantFor(creature, map);
+    const spec = combatantFor(creature);
     const maxHp = hpFor(spec);
     return {
       id: creature.id,
@@ -260,11 +267,11 @@ function hpFor(spec: CombatantSpec): number {
 export function expeditionMove(
   state: RanchState,
   nodeId: string,
-  map: GeneMap,
-  advance: (state: RanchState, days: number, map: GeneMap) => ActionResult,
+  advance: (state: RanchState, days: number) => ActionResult,
 ): ActionResult {
   const run = state.expedition;
   if (!run || run.status !== "active") return blocked(state, "You are not out on an expedition.");
+  const map = regionMap(run);
   const here = nodeById(run.region, run.at);
   if (!here.next.includes(nodeId)) return blocked(state, "You cannot get there from here.");
 
@@ -280,7 +287,7 @@ export function expeditionMove(
   if (node.kind === "encounter" || node.kind === "warden") {
     const mine: CombatantSpec[] = team.map((member) => {
       const creature = state.creatures.find((c) => c.id === member.id) as Creature;
-      return combatantFor(creature, map, member.hp);
+      return combatantFor(creature, member.hp);
     });
     const count = node.kind === "warden" ? mine.length : Math.max(1, Math.min(mine.length, 1 + rng.int(mine.length)));
     const theirs = wildOpponents(map, node.difficulty, count, rng).specs;
@@ -317,7 +324,7 @@ export function expeditionMove(
         status: "lost",
         rngCursor: run.rngCursor + 1,
       };
-      return finish(state, ended, removedIds, map, events, advance);
+      return finish(state, ended, removedIds, events, advance);
     }
     log.push(`Held ${node.name} in ${result.rounds} rounds.`);
     events.push({ kind: "battle", won: true, rounds: result.rounds, summary: `Held ${node.name}.` });
@@ -354,25 +361,34 @@ export function expeditionMove(
     rngCursor: run.rngCursor + 1,
   };
 
-  if (nextRun.status !== "active") return finish(state, nextRun, removedIds, map, events, advance);
+  if (nextRun.status !== "active") return finish(state, nextRun, removedIds, events, advance);
 
   const moved: RanchState = {
     ...state,
     expedition: nextRun,
     creatures: state.creatures.filter((c) => !removedIds.includes(c.id)),
   };
-  const advanced = advance(moved, DAYS_PER_NODE, map);
+  const advanced = advance(moved, DAYS_PER_NODE);
   return { state: advanced.state, events: [...events, ...advanced.events] };
+}
+
+/**
+ * The gene map of whatever lives where the team currently is.
+ *
+ * A save written before regions named their species is still readable: the
+ * biome names it, and failing that the Mirefen is where everyone started.
+ */
+function regionMap(run: ExpeditionState) {
+  return geneMapById(run.region.species ?? speciesForBiome(run.region.biome) ?? "quillfen");
 }
 
 export function expeditionWithdraw(
   state: RanchState,
-  map: GeneMap,
-  advance: (state: RanchState, days: number, map: GeneMap) => ActionResult,
+  advance: (state: RanchState, days: number) => ActionResult,
 ): ActionResult {
   const run = state.expedition;
   if (!run || run.status !== "active") return blocked(state, "You are not out on an expedition.");
-  return finish(state, { ...run, status: "withdrawn", log: [...run.log, "Turned for home."] }, [], map, [], advance);
+  return finish(state, { ...run, status: "withdrawn", log: [...run.log, "Turned for home."] }, [], [], advance);
 }
 
 /**
@@ -386,10 +402,10 @@ function finish(
   state: RanchState,
   run: ExpeditionState,
   removedIds: readonly CreatureId[],
-  map: GeneMap,
   events: GameEvent[],
-  advance: (state: RanchState, days: number, map: GeneMap) => ActionResult,
+  advance: (state: RanchState, days: number) => ActionResult,
 ): ActionResult {
+  const map = regionMap(run);
   let creatures = state.creatures.filter((c) => !removedIds.includes(c.id));
   let pedigree = state.pedigree;
   let nextId = state.nextId;
@@ -423,7 +439,7 @@ function finish(
     expedition: undefined,
   };
 
-  const advanced = advance(home, DAYS_PER_NODE, map);
+  const advanced = advance(home, DAYS_PER_NODE);
   return {
     state: advanced.state,
     events: [

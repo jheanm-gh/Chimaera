@@ -141,6 +141,14 @@ export interface RanchState {
   readonly version: number;
   readonly seed: string;
   /**
+   * The species this station is posted to.
+   *
+   * Creatures carry their own `species` and a ranch may hold several, but the
+   * home species decides what the fen outside produces and which species the
+   * campaign's commissions are written for.
+   */
+  readonly homeSpecies: SpeciesId;
+  /**
    * The ranch's base random stream. It never advances.
    *
    * `Rng.fork(label)` is deliberately *non-consuming* — that is the whole
@@ -211,7 +219,13 @@ export type Action =
   | { readonly kind: "setStance"; readonly id: CreatureId; readonly stance: Stance }
   | { readonly kind: "setEquipment"; readonly id: CreatureId; readonly equipment: readonly string[] }
   | { readonly kind: "bout"; readonly team: readonly CreatureId[]; readonly tier: number }
-  | { readonly kind: "enterExpedition"; readonly team: readonly CreatureId[]; readonly regionSeed?: string }
+  | {
+      readonly kind: "enterExpedition";
+      readonly team: readonly CreatureId[];
+      readonly regionSeed?: string;
+      /** Where to go. Defaults to the home fen; another biome is another species. */
+      readonly species?: SpeciesId;
+    }
   | { readonly kind: "expeditionMove"; readonly nodeId: string }
   | { readonly kind: "expeditionWithdraw" };
 

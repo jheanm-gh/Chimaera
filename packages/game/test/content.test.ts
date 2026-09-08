@@ -366,13 +366,13 @@ describe("feed can never beat genes", () => {
   const map = geneMapFor(SPECIES[0] ?? (() => { throw new Error("no species"); })());
 
   it("closes the gap to the ceiling and stops there", () => {
-    let state = createRanch(map, { seed: "feed", startingItems: { "feed-marrow": 12 } });
+    let state = createRanch({ species: map.species.id, seed: "feed", startingItems: { "feed-marrow": 12 } });
     const target = state.creatures.find((c) => c.stage !== "egg");
     if (!target) throw new Error("no creature");
-    const ceiling = phenotypeOf(target, map).stats.vigour ?? 0;
+    const ceiling = phenotypeOf(target).stats.vigour ?? 0;
 
     for (let i = 0; i < 12; i++) {
-      const result = applyAction(state, { kind: "useItem", id: target.id, item: "feed-marrow" }, map);
+      const result = applyAction(state, { kind: "useItem", id: target.id, item: "feed-marrow" });
       expect(result.events.some((e) => e.kind === "blocked")).toBe(false);
       state = result.state;
     }
@@ -382,7 +382,7 @@ describe("feed can never beat genes", () => {
     // Twelve doses of a third of the gap each: it should be very close, and
     // never past, which is the whole claim.
     expect(fed.achieved.vigour ?? 0).toBeGreaterThan((target.achieved.vigour ?? 0) + 1);
-    expect(currentStats(fed, phenotypeOf(fed, map), map).vigour ?? 0).toBeLessThanOrEqual(ceiling + 1e-9);
+    expect(currentStats(fed, phenotypeOf(fed), map).vigour ?? 0).toBeLessThanOrEqual(ceiling + 1e-9);
   });
 });
 
@@ -399,7 +399,7 @@ describe("held gear changes the cost of raising, not its ceiling", () => {
   }
 
   it("makes training cheaper in days with a rig, and no better in stats", () => {
-    const base = createRanch(map, { seed: "gear" }).creatures[0];
+    const base = createRanch({ species: map.species.id, seed: "gear" }).creatures[0];
     if (!base) throw new Error("no creature");
     const trained: Creature = { ...base, training: "sprint", stage: "adult", ageDays: 60 };
     const bare = raise(trained, 30);
@@ -412,7 +412,7 @@ describe("held gear changes the cost of raising, not its ceiling", () => {
 
   it("lets decor undo a mismatch but never grant a bonus", () => {
     const wild = randomWildGenome(map, createRng("decor"));
-    const base = createRanch(map, { seed: "decor" }).creatures[0];
+    const base = createRanch({ species: map.species.id, seed: "decor" }).creatures[0];
     if (!base) throw new Error("no creature");
     const phenotype = expressPhenotype(wild, map);
     const affinities = (phenotype.traits.affinity ?? "").split("+").filter(Boolean);
@@ -455,17 +455,17 @@ describe("the test-cross kit reads a clutch, not an animal", () => {
   const map = geneMapFor(species);
 
   it("reveals the locus on every living offspring at once", () => {
-    let state = createRanch(map, { seed: "testcross", startingItems: { "test-cross-kit": 2 } });
+    let state = createRanch({ species: map.species.id, seed: "testcross", startingItems: { "test-cross-kit": 2 } });
     const sire = state.creatures.find((c) => c.sex === "male" && c.stage === "adult");
     const dam = state.creatures.find((c) => c.sex === "female" && c.stage === "adult");
     if (!sire || !dam) throw new Error("no breeding pair");
 
     for (let i = 0; i < 4; i++) {
-      state = applyAction(state, { kind: "breed", sireId: sire.id, damId: dam.id }, map).state;
+      state = applyAction(state, { kind: "breed", sireId: sire.id, damId: dam.id }).state;
     }
     const locus = map.loci[0]?.id;
     if (!locus) throw new Error("no loci");
-    state = applyAction(state, { kind: "useItem", id: dam.id, item: "test-cross-kit", locus }, map).state;
+    state = applyAction(state, { kind: "useItem", id: dam.id, item: "test-cross-kit", locus }).state;
 
     const children = state.creatures.filter((c) => c.damId === dam.id);
     expect(children.length).toBeGreaterThan(0);
@@ -483,11 +483,11 @@ describe("a pedigree extension buys Archive berths", () => {
   const map = geneMapFor(species);
 
   it("raises the cap permanently and spends the item", () => {
-    const state = createRanch(map, { seed: "archive", startingItems: { "pedigree-extension": 1 } });
+    const state = createRanch({ species: map.species.id, seed: "archive", startingItems: { "pedigree-extension": 1 } });
     const target = state.creatures[0];
     if (!target) throw new Error("no creature");
     const before = state.archiveCapacity;
-    const after = applyAction(state, { kind: "useItem", id: target.id, item: "pedigree-extension" }, map);
+    const after = applyAction(state, { kind: "useItem", id: target.id, item: "pedigree-extension" });
     expect(after.state.archiveCapacity).toBe(before + 8);
     expect(after.state.inventory.items["pedigree-extension"]).toBe(0);
   });

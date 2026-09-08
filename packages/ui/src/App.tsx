@@ -1,16 +1,17 @@
-import { activeCreatures, CHAPTER_COUNT, currentStats, isFertile, phenotypeOf } from "@chimaera/game";
+import { activeCreatures, CHAPTER_COUNT, currentStats, isFertile, mapOf, phenotypeOf } from "@chimaera/game";
 import type { Creature, GameEvent } from "@chimaera/game";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
+import { NewStation } from "./components/NewStation.js";
 import { CreaturePanel } from "./components/CreaturePanel.js";
 import { FieldView } from "./components/FieldView.js";
 import { PairingView } from "./components/PairingView.js";
 import { PedigreeView } from "./components/PedigreeView.js";
 import { VirtualGrid } from "./components/VirtualGrid.js";
 import { exportToFile, importFromFile } from "./db.js";
-import { map, useRanch } from "./useRanch.js";
+import { useRanch } from "./useRanch.js";
 
 type Tab = "ranch" | "pairing" | "field" | "commission" | "pedigree" | "archive" | "journal";
 
@@ -38,6 +39,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<PaletteMode>("full");
   const [textScale, setTextScale] = useState(1);
+  const [newStation, setNewStation] = useState(false);
 
   const creatures = activeCreatures(ranch.state);
   const selected = creatures.find((c) => c.id === selectedId) ?? creatures[0];
@@ -57,7 +59,9 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">Verdance</span>
-          <span className="brand-sub">Mirefen Ranch · seed {ranch.state.seed}</span>
+          <span className="brand-sub">
+            {ranch.map.species.biome} Station · {ranch.map.species.name} · seed {ranch.state.seed}
+          </span>
         </div>
         <dl className="counters">
           <div>
@@ -94,6 +98,9 @@ export function App() {
           </button>
           <button type="button" onClick={() => ranch.dispatch({ kind: "catchWild" })}>
             Catch wild stock (3d)
+          </button>
+          <button type="button" onClick={() => setNewStation((open) => !open)}>
+            New station
           </button>
         </div>
       </header>
@@ -156,6 +163,12 @@ export function App() {
         <p className="blocked" role="status">
           {ranch.lastBlocked}
         </p>
+      ) : null}
+
+      {newStation ? (
+        <div className="overlay" role="dialog" aria-label="Start a new station">
+          <NewStation ranch={ranch} onDone={() => setNewStation(false)} />
+        </div>
       ) : null}
 
       <main className={`layout layout-${tab}`}>
@@ -260,7 +273,8 @@ function CreatureCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const phenotype = phenotypeOf(creature, map);
+  const map = mapOf(creature);
+  const phenotype = phenotypeOf(creature);
   const stats = currentStats(creature, phenotype, map);
   return (
     <button type="button" className={`creature-card${selected ? " selected" : ""}`} onClick={onSelect}>

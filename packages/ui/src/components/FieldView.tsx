@@ -6,12 +6,13 @@ import {
   leagueTier,
   nodeById,
   optionsFrom,
+  POSTINGS,
 } from "@chimaera/game";
 import type { RegionNode } from "@chimaera/game";
+import type { SpeciesId } from "@chimaera/genetics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EvaluateRequest, EvaluateResponse } from "../workers/evaluate.worker.js";
 import type { RanchController } from "../useRanch.js";
-import { map } from "../useRanch.js";
 
 interface Props {
   readonly ranch: RanchController;
@@ -136,7 +137,7 @@ function EvaluationPanel({ ranch, team }: { ranch: RanchController; team: readon
     setRunning(true);
     setReport(undefined);
     const request: EvaluateRequest = {
-      specs: creatures.map((creature) => combatantFor(creature, map)),
+      specs: creatures.map((creature) => combatantFor(creature)),
       difficulty: leagueTier(tier).difficulty,
       fights,
       seed: `${ranch.state.seed}:evaluate:${ranch.state.day}:${tier}`,
@@ -210,16 +211,36 @@ function EvaluationPanel({ ranch, team }: { ranch: RanchController; team: readon
 }
 
 function ExpeditionStart({ ranch, team }: { ranch: RanchController; team: readonly string[] }) {
+  const [destination, setDestination] = useState<SpeciesId>(ranch.state.homeSpecies);
   const sized = team.length === EXPEDITION_TEAM_SIZE;
   const blooded = ranch.state.leagueTier >= 1;
   const label = !blooded ? "Win a League bout first" : sized ? "Put in" : `Choose exactly ${EXPEDITION_TEAM_SIZE}`;
+  const posting = POSTINGS.find((entry) => entry.species === destination);
   return (
     <div className="panel danger-panel">
       <h2>Expedition</h2>
       <p className="hint">
         Three creatures, a region nobody has mapped, and no way to heal properly until you come home. What falls out
-        there does not come back. The wild stock you find is what an inbred herd actually needs.
+        there does not come back. The wild stock you find is what an inbred herd actually needs — and it is the only
+        way to bring another species home.
       </p>
+      <label className="setting">
+        <span>Where</span>
+        <select value={destination} onChange={(event) => setDestination(event.target.value as SpeciesId)}>
+          {POSTINGS.map((entry) => (
+            <option key={entry.species} value={entry.species}>
+              {entry.biome} — {entry.name}
+              {entry.species === ranch.state.homeSpecies ? " (home)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      {posting && posting.species !== ranch.state.homeSpecies ? (
+        <p className="note">
+          Foreign ground. What you bring back from the {posting.biome} will be a {posting.name}, and it will not
+          pair with anything already in your pens.
+        </p>
+      ) : null}
       {!blooded ? (
         <p className="note">
           The League first. Find out what your stock can take somewhere that does not keep what it beats.
@@ -229,7 +250,7 @@ function ExpeditionStart({ ranch, team }: { ranch: RanchController; team: readon
         type="button"
         className="primary"
         disabled={!sized || !blooded}
-        onClick={() => ranch.dispatch({ kind: "enterExpedition", team })}
+        onClick={() => ranch.dispatch({ kind: "enterExpedition", team, species: destination })}
       >
         {label}
       </button>

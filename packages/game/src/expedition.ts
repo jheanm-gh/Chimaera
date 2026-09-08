@@ -16,7 +16,7 @@
  * than a punishment for stopping.
  */
 
-import type { GeneMap, Genome, LocusId, Rng } from "@chimaera/genetics";
+import type { GeneMap, Genome, LocusId, Rng, SpeciesId } from "@chimaera/genetics";
 import { createRng, expressPhenotype, randomWildGenome } from "@chimaera/genetics";
 import type { CombatantSpec, Role, Stance } from "./combat.js";
 import type { CreatureId } from "./types.js";
@@ -38,6 +38,8 @@ export interface Region {
   readonly seed: string;
   readonly name: string;
   readonly biome: string;
+  /** What lives here. Wild stock met and caught on this run is this species. */
+  readonly species: SpeciesId;
   readonly depth: number;
   readonly entry: string;
   readonly nodes: readonly RegionNode[];
@@ -120,6 +122,7 @@ const NODE_FLAVOUR: Readonly<Record<NodeKind, { names: readonly string[]; blurb:
 export interface RegionOptions {
   readonly depth?: number;
   readonly biome?: string;
+  readonly species?: SpeciesId;
 }
 
 /**
@@ -184,6 +187,7 @@ export function generateRegion(seed: string, options: RegionOptions = {}): Regio
     seed,
     name: rng.pick(REGION_NAMES),
     biome: options.biome ?? "Mirefen",
+    species: options.species ?? "quillfen",
     depth,
     entry: "n0",
     nodes: draft.map((node) => ({ ...node, next: [...node.next] })),

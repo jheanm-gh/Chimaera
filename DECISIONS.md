@@ -591,6 +591,62 @@ already true ticks immediately.
 
 ---
 
+## Phase 6a — Mixed stock
+
+### D60. The gene map is resolved from the creature, not threaded through the reducer
+
+`applyAction(state, action, map)` became `applyAction(state, action)`. Every
+creature already carried its `species`; `mapOf(creature)` now reads the map from
+that at the point of use, and `RanchState.homeSpecies` says which fen is outside
+the door.
+
+The old arrangement was correct while one species shipped and became a
+correctness hazard the moment six did — every call site had to be handed the
+right map and nothing checked that it was. Expressing a Silt-Adder's genome
+through a Quillfen's loci does not throw; it produces a confident, completely
+wrong animal, and then draws it. Resolving from the creature makes that
+unrepresentable.
+
+This resolves A4, which was raised at the end of Phase 5 as a Phase 6 problem.
+It was cheaper to fix before the mode surface grew, which is exactly why it was
+flagged there.
+
+### D61. Cross-species pairings are refused, not fudged
+
+Two species have different chromosome sets and different loci. There is no
+hybrid to express and no honest way to invent one, so `breed` refuses the
+pairing outright and the Pairing view only offers dams of the sire's species —
+a chooser that offers an option the reducer will reject is an invitation to a
+rejection message.
+
+### D62. Expeditions are how you get another species
+
+Each of the six biomes belongs to exactly one species, so naming a destination
+names an animal: going to the Galeshore is how a Quillfen station comes home
+with a Kite-Ossel.
+
+That gives the expedition system a second job beyond risk. §4 wants a Stud
+Exchange and an Exhibition, both of which want mixed stock, and this is the
+diegetic route to it — you travel for foreign blood rather than buying it from a
+menu. It also puts a real cost on the acquisition, since an expedition can take
+a creature and not give it back.
+
+The League stays local: whatever mixed stock a station keeps, the animals across
+the sand are the home fen's.
+
+### D63. All six species are offered at the start
+
+Gating four species behind progress would mean shipping content most players
+never see, and the difficulty difference between them is a difficulty of
+*puzzle*, not of numbers. A player who wants to open on the Ashen Lorric's
+two-stage cascade should be allowed to find out what that costs them; the
+starter trio is marked as such and that is the whole of the guidance.
+
+The picker leads with each species' genetic problem rather than its stat line,
+because the stat line is not what anyone will be thinking about four hours in.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.
@@ -627,6 +683,8 @@ in their first hour, which the campaign needs. It also means roughly 1 in 600
 wild-pair eggs fails to a doubled lethal before the player has any idea why.
 That is the intended lesson, but it wants a tutorial beat in Chapter 1, not
 Chapter 5.
+
+**A4. RESOLVED in Phase 6a (D60, D61, D62).** Original argument follows.
 
 **A4. Ranch state is single-species.** `applyAction(state, action, map)` takes
 one gene map, so a save holds one species' stock. Six species ship, and each is
