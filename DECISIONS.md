@@ -1114,6 +1114,71 @@ that cannot be turned off is a nag.
 
 ---
 
+## Phase 9 — Anatomy as statline
+
+### D91. Delete the stats
+
+Combat read three abstract numbers — speed, vigour, focus. You bred for "+2
+focus" and nothing about the animal in front of you changed, and two creatures
+traded one generic strike until one fell over. That is the wrong shape for a
+game whose entire subject is heritable form, and it is the single cause of two
+complaints that sound separate: the traits are hard to understand, and breeding
+feels like a mystery.
+
+Combat now reads *measurements*. Mass in kilograms, tusks in centimetres, hide
+in millimetres and what it is made of. Thirteen quantities, every one of them
+something the sprite draws and the player can point at.
+
+The genome did not need changing. It was already full of physical things —
+`BUILD` is heavy or slight, `LIMB` is paddle or clawed or stub, `TAIL` is fan or
+whip — and all of it was being funnelled into three numbers and discarded. The
+redesign is not fighting the genome; it is reading it properly for the first
+time.
+
+`morphology.ts` lives in the genetics package rather than the game because it is
+phenotype interpretation, not a combat rule, and because both the renderer and
+the resolver have to agree about how long a tail is. Two readings of one animal
+is a creature whose picture disagrees with what it can do.
+
+### D92. A move a creature cannot perform, rather than performs weakly
+
+Each move states anatomy it requires before it exists at all. A creature with no
+tusks cannot Gore — not "gores weakly", cannot. A limbless one cannot Trample
+and does not want to: it has 183cm of body and Constrict instead.
+
+So breeding does not tune a number, it changes the moveset, and the player can
+see which way it went by looking at the animal. The epistasis that hides a
+crest now takes the spines with it: you lose a move, and the reason is visible.
+
+Hide replaces the type chart, and unlike a type chart it is guessable — plate
+turns a point, slime defeats a grip, bare skin argues with nothing. A player who
+has never read the table can still work out that stabbing an armoured animal is
+a poor plan.
+
+### D93. Three defects the first cut hid, all caught by measuring
+
+**Two species had a constant mass.** Each species has exactly one continuous
+shape value and they are all named differently — `build`, `spines`, `span`,
+`coils`, `limbs`. Matching on a pattern silently missed two of the six, leaving
+those animals at a fixed weight: creatures you could not breed larger. The frame
+now names its own shape value.
+
+**An animal could have a weapon of length zero.** A species with no armament of
+its own can still grow one from an allele — the Ashen Lorric's hooked grip is a
+beak by any useful definition — and with no fallback proportion those animals
+unlocked a beak move and then did nothing with it.
+
+**Bite was available to every animal on the roster.** A move with no gate is an
+abstract stat wearing a move's name, so the gape it needs went from four
+centimetres to eight. A gape a player has to breed for is a gate; a gape
+everything already has is not.
+
+The tests that caught these are the ones worth keeping: every move must be
+reachable by some real animal, no move may be available to all of them, and each
+species' mass, height and stride must actually spread under breeding.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.

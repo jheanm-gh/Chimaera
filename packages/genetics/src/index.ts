@@ -14,6 +14,7 @@ export * from "./genome.js";
 export * from "./meiosis.js";
 export * from "./mutation.js";
 export * from "./expression.js";
+export * from "./morphology.js";
 export * from "./pedigree.js";
 export * from "./epigenetics.js";
 export * from "./breeding.js";

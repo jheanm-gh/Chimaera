@@ -13,6 +13,7 @@ export * from "./branches.js";
 export * from "./campaign.js";
 export * from "./evolution.js";
 export * from "./combat.js";
+export * from "./moves.js";
 export * from "./expedition.js";
 export * from "./modes.js";
 export * from "./exhibition.js";
