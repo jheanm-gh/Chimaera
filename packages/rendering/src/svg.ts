@@ -11,6 +11,8 @@
  * stored as curves.
  */
 
+import { BASELINE } from "./rig/plan.js";
+import { fitLines } from "./textfit.js";
 import type { ColourRole, Drawing, HatchPattern, Mark, ResolvedPalette, Ring, Vec2 } from "./types.js";
 
 /**
@@ -211,9 +213,29 @@ function drawingId(drawing: Drawing): string {
   return `q${hash.toString(36)}`;
 }
 
+/** Where the caption sits, and how much paper it gets. */
+const LABEL = {
+  fontSize: 7.5,
+  letterSpacing: 0.3,
+  /** Left edge, and the margin mirrored on the right. */
+  margin: 16,
+  /** First baseline, measured up from the bottom of the plate. */
+  firstFromBottom: 17,
+  lineHeight: 9,
+  maxLines: 2,
+} as const;
+
+/** The caption text, as it reads on the plate. */
+export function captionText(caption: Drawing["caption"]): string {
+  const notes = caption.notes.length > 0 ? ` — ${caption.notes.join(", ")}` : "";
+  return `${caption.species} · ${caption.sex === "female" ? "♀" : "♂"} · ${caption.form}${notes}`;
+}
+
 /** Specimen-catalogue furniture: baseline, measurement ticks, typeset label. */
 function journalFrame(drawing: Drawing): string {
-  const baseline = drawing.height - 20;
+  // The rule sits just under the animal's feet, not at a fixed distance from
+  // the bottom of the paper — the paper below it belongs to the label.
+  const baseline = BASELINE + 2;
   const ticks: string[] = [];
   const step = (drawing.width - 40) / drawing.caption.lengthUnits;
   for (let i = 0; i <= drawing.caption.lengthUnits; i++) {
@@ -221,15 +243,28 @@ function journalFrame(drawing: Drawing): string {
     const tall = i % 5 === 0;
     ticks.push(`<line x1="${n(x)}" y1="${n(baseline)}" x2="${n(x)}" y2="${n(baseline + (tall ? 5 : 2.5))}"/>`);
   }
-  const notes = drawing.caption.notes.length > 0 ? ` — ${drawing.caption.notes.join(", ")}` : "";
-  const label = escapeText(
-    `${drawing.caption.species} · ${drawing.caption.sex === "female" ? "♀" : "♂"} · ${drawing.caption.form}${notes}`,
-  );
+  const lines = fitLines(captionText(drawing.caption), {
+    fontSize: LABEL.fontSize,
+    letterSpacing: LABEL.letterSpacing,
+    width: drawing.width - LABEL.margin * 2,
+    maxLines: LABEL.maxLines,
+  });
+  const top = drawing.height - LABEL.firstFromBottom;
+  const label = lines
+    .map((line, index) => {
+      const fit = line.textLength === undefined ? "" : ` textLength="${n(line.textLength)}" lengthAdjust="spacingAndGlyphs"`;
+      return (
+        `<text x="${n(LABEL.margin)}" y="${n(top + index * LABEL.lineHeight)}" ` +
+        `font-family="Georgia, 'Iowan Old Style', serif" font-size="${n(LABEL.fontSize)}" ` +
+        `fill="${drawing.palette.ink}" opacity="0.8" letter-spacing="${n(LABEL.letterSpacing)}"${fit}>` +
+        `${escapeText(line.text)}</text>`
+      );
+    })
+    .join("");
   return (
     `<g stroke="${drawing.palette.ink}" stroke-width="0.9" opacity="0.55">` +
     `<line x1="20" y1="${n(baseline)}" x2="${n(drawing.width - 20)}" y2="${n(baseline)}"/>${ticks.join("")}</g>` +
-    `<text x="20" y="${n(drawing.height - 6)}" font-family="Georgia, 'Iowan Old Style', serif" font-size="7.5" ` +
-    `fill="${drawing.palette.ink}" opacity="0.8" letter-spacing="0.3">${label}</text>`
+    label
   );
 }
 

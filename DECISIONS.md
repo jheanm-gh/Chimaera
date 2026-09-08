@@ -897,6 +897,52 @@ order, counts the stops, and looks for controls with no accessible name.
 
 ---
 
+## Quality control after Phase 7
+
+### D81. The specimen label is measured, not hoped at
+
+The plate's caption was one line of SVG text with nothing checking its width.
+About a third of the captions the six species can produce ran past the measuring
+rule they sit under, and nearly a fifth ran off the edge of the paper and were
+clipped mid-word by the viewBox — an animal whose label read `hidden / conical /
+barred / collar+flecks — hen-f` and stopped. SVG has no text wrapping, so this
+was never going to fix itself.
+
+The fix is a measured one. `textfit.ts` carries a per-glyph advance table read
+out of a browser with `getComputedTextLength`, which reproduces a real caption's
+rendered width to better than half a percent; `journalFrame` wraps on it into two
+lines. The plate grew from 240x160 to 240x170 to hold the second line, which
+costs the creature nothing — it stands on `BASELINE`, which never moved, and the
+silhouette test crops to the animal rather than the paper.
+
+Two things cover a reader whose machine has a font the table has never measured:
+every break is chosen against a budget padded by 15%, and any line that still
+lands near the edge is pinned with `textLength`, which hands the fit to the
+browser. Across the roster nothing needs pinning and nothing elides — the worst
+line fills 87% of the paper.
+
+Caught by looking at a screenshot of a 500-creature herd, which is the argument
+for taking the screenshot. The regression test asserts the defect as well as the
+fix: it measures how many captions *would* have been clipped, so a return to one
+line fails loudly rather than quietly.
+
+### D82. Five hundred creatures, measured again at the end
+
+§10's target was re-checked on the finished app rather than on the Phase 3 app
+that first met it — with audio running, five species mixed in one herd, and a
+bundle three times the size. A mixed herd on purpose: 500 copies of one animal
+would let a renderer, a voice table and a Compendium all cheat.
+
+500 creatures reach first paint in 151ms, mount 20 of 500 cards, and hold 3,539
+DOM nodes at their widest. A 44-step sweep of the whole herd logs **no long tasks
+at all** — not a fast worst frame, but nothing that blocked the main thread for
+50ms, which is what dropping a frame actually is. A lap of all nine tabs with the
+same herd loaded logs none either. Scroll steps run 18ms median, 30ms worst;
+forty arrow-key moves cost 674ms; selecting a card — which expresses a phenotype,
+draws it and voices it — costs 21ms.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.

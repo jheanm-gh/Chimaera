@@ -10,6 +10,7 @@ export * from "./geometry.js";
 export * from "./palette.js";
 export * from "./render.js";
 export * from "./svg.js";
+export * from "./textfit.js";
 export * from "./silhouette.js";
 export * from "./rig/plan.js";
 export * from "./rig/plans.js";

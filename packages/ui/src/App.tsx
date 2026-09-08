@@ -227,7 +227,7 @@ export function App() {
             <section className="herd" id="herd" aria-label="The herd">
               <VirtualGrid
                 items={creatures}
-                rowHeight={252}
+                rowHeight={262}
                 minColumnWidth={228}
                 gap={14}
                 label={`The herd, ${creatures.length} creatures. Arrow keys to move.`}

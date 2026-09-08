@@ -86,7 +86,14 @@ export interface PlanInput {
   readonly rng: Rng;
 }
 
-export const CANVAS = { width: 240, height: 160 } as const;
+/**
+ * The plate.
+ *
+ * Taller than the animal needs: the strip below BASELINE is the specimen
+ * label's, and the label runs to two lines because half of them do not fit on
+ * one. The creature is unaffected — it stands on BASELINE either way.
+ */
+export const CANVAS = { width: 240, height: 170 } as const;
 export const BASELINE = 138;
 
 function steps(input: PlanInput, full: number): number {
