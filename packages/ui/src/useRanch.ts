@@ -22,7 +22,18 @@ export interface JournalEntry {
 const JOURNAL_LIMIT = 240;
 
 export interface RanchController {
+  /** Whatever is being played: the station, or a trial running beside it. */
   readonly state: RanchState;
+  /** The player's own station. The same object as `state` unless a side run is open. */
+  readonly home: RanchState;
+  /**
+   * A Breeding Trial or a Daily Genome running beside the station.
+   *
+   * It is a whole `RanchState` rather than a mode flag, so every screen the
+   * game already has — pairing, the Punnett predictor, the pedigree — works
+   * inside a trial without knowing a trial exists.
+   */
+  readonly side: RanchState | undefined;
   /** The station's own gene map: the fen outside, and the campaign's species. */
   readonly map: ReturnType<typeof homeMap>;
   readonly journal: readonly JournalEntry[];
@@ -30,6 +41,10 @@ export interface RanchController {
   readonly lastBlocked: string | undefined;
   dispatch(action: Action): readonly GameEvent[];
   replace(state: RanchState): void;
+  /** Applies a change to the station itself, even while a side run is open. */
+  updateHome(change: (state: RanchState) => RanchState): void;
+  openSide(state: RanchState): void;
+  closeSide(): void;
   reset(seed: string, species: SpeciesId): void;
   clearBlocked(): void;
 }
@@ -38,6 +53,7 @@ export function useRanch(): RanchController {
   const [state, setState] = useState<RanchState>(() =>
     createRanch({ seed: defaultSeed(), species: STARTER_TRIO[0] ?? "quillfen" }),
   );
+  const [side, setSide] = useState<RanchState | undefined>(undefined);
   const [journal, setJournal] = useState<readonly JournalEntry[]>([]);
   const [ready, setReady] = useState(false);
   const [lastBlocked, setLastBlocked] = useState<string | undefined>(undefined);
@@ -65,6 +81,8 @@ export function useRanch(): RanchController {
   useEffect(() => {
     if (!ready) return;
     const timer = window.setTimeout(() => {
+      // Always the station. A trial is a side run and does not belong in the
+      // slot the player's actual ranch lives in.
       void saveToSlot(AUTOSAVE_SLOT, state).catch(() => undefined);
     }, 400);
     return () => window.clearTimeout(timer);
@@ -84,19 +102,28 @@ export function useRanch(): RanchController {
   const dispatch = useCallback(
     (action: Action): readonly GameEvent[] => {
       let events: readonly GameEvent[] = [];
-      setState((current) => {
+      const apply = (current: RanchState): RanchState => {
         const result = applyAction(current, action);
         events = result.events;
         record(result.events, result.state.day);
         return result.state;
-      });
+      };
+      // Whichever ranch is on screen is the one the action lands on. A trial is
+      // a real ranch, so it takes real actions.
+      setSide((current) => (current ? apply(current) : current));
+      setState((current) => (sideRef.current ? current : apply(current)));
       return events;
     },
     [record],
   );
 
+  // The dispatcher reads this synchronously, so it must not be state.
+  const sideRef = useRef<RanchState | undefined>(undefined);
+  sideRef.current = side;
+
   const replace = useCallback((next: RanchState) => {
     setState(next);
+    setSide(undefined);
     setJournal([]);
     setLastBlocked(undefined);
   }, []);
@@ -108,14 +135,23 @@ export function useRanch(): RanchController {
     [replace],
   );
 
+  const active = side ?? state;
   return {
-    state,
-    map: homeMap(state),
+    state: active,
+    home: state,
+    side,
+    map: homeMap(active),
     journal,
     ready,
     lastBlocked,
     dispatch,
     replace,
+    updateHome: useCallback((change: (current: RanchState) => RanchState) => setState(change), []),
+    openSide: useCallback((next: RanchState) => {
+      setSide(next);
+      setLastBlocked(undefined);
+    }, []),
+    closeSide: useCallback(() => setSide(undefined), []),
     reset,
     clearBlocked: useCallback(() => setLastBlocked(undefined), []),
   };

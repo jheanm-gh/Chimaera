@@ -46,6 +46,8 @@ import {
 } from "./lifecycle.js";
 import { enterExpedition, expeditionMove, expeditionWithdraw, runBout } from "./runs.js";
 import { enterShow } from "./shows.js";
+import { readStud } from "./exchange.js";
+import type { StudOffer } from "./exchange.js";
 import { trialGenomes } from "./trials.js";
 import type { Trial } from "./trials.js";
 import { NO_RECORDS } from "./types.js";
@@ -412,6 +414,8 @@ function dispatch(state: RanchState, action: Action): ActionResult {
       return advance(state, Math.max(0, Math.floor(action.days)));
     case "breed":
       return doBreed(state, action.sireId, action.damId, action.items ?? []);
+    case "breedToStud":
+      return doBreedToStud(state, action.damId, action.offer, action.items ?? []);
     case "setDiet":
       return patch(state, action.id, (c) => ({ ...c, diet: action.diet }));
     case "setHabitat":
@@ -612,6 +616,48 @@ function loadFromItems(items: readonly ItemDef[]): BreedingLoad {
   };
 }
 
+/**
+ * Breeding a dam to a stud published by another station.
+ *
+ * He is never on the ranch: he arrives as a genome code, joins the pedigree as
+ * an unrelated founder, contributes a gamete, and is gone. What you get is one
+ * gamete's worth of somebody else's work, which is what a stud fee buys.
+ */
+function doBreedToStud(
+  state: RanchState,
+  damId: CreatureId,
+  offer: StudOffer,
+  itemIds: readonly string[],
+): ActionResult {
+  const dam = findCreature(state, damId);
+  if (!dam) return blocked(state, "That creature is not on the ranch.");
+  if (state.trial) return blocked(state, "There is no exchange here. What you were given is what you have.");
+
+  let read: ReturnType<typeof readStud>;
+  try {
+    read = readStud(offer);
+  } catch (error) {
+    return blocked(state, error instanceof Error ? error.message : "That stud offer could not be read.");
+  }
+
+  const map = geneMapById(read.species);
+  const phenotype = expressPhenotype(read.genome, map);
+  const stud: Creature = newCreature({
+    id: `stud:${offer.code.slice(0, 10)}`,
+    genome: read.genome,
+    phenotype,
+    map,
+    name: `${offer.name} of ${offer.station}`,
+    day: state.day,
+    origin: "gift",
+    inbreeding: 0,
+    generation: 0,
+    ageDays: 60,
+  });
+
+  return performBreeding(state, stud, dam, itemIds, { station: offer.station, fee: offer.fee });
+}
+
 function doBreed(
   state: RanchState,
   sireId: CreatureId,
@@ -622,6 +668,29 @@ function doBreed(
   const dam = findCreature(state, damId);
   if (!sire || !dam) return blocked(state, "Both parents must be on the ranch.");
   if (sire.id === dam.id) return blocked(state, "A creature cannot breed with itself.");
+  if (!isFertile(sire)) return blocked(state, "The sire must be an adult. Fertility closes at Elder.");
+  return performBreeding(state, sire, dam, itemIds);
+}
+
+/**
+ * The shared breeding path.
+ *
+ * Split out because the Stud Exchange breeds a dam to an animal that is not on
+ * the ranch and never will be: the sire arrives as a genome code, contributes a
+ * gamete, and vanishes. Everything downstream of the pairing — mutation events,
+ * epigenetic marks, the lifespan cost of a mutagen, the incubation clock — is
+ * the same either way, and duplicating it for the exchange would guarantee the
+ * two drifted apart.
+ */
+function performBreeding(
+  state: RanchState,
+  sire: Creature,
+  dam: Creature,
+  itemIds: readonly string[],
+  external?: { readonly station: string; readonly fee: number },
+): ActionResult {
+  const sireId = sire.id;
+  const damId = dam.id;
   // Two species, two gene maps, two chromosome sets. There is no hybrid to
   // express and no honest way to invent one, so the pairing is simply refused.
   if (sire.species !== dam.species) {
@@ -629,8 +698,8 @@ function doBreed(
   }
   const map = mapOf(sire);
   if (sire.sex !== "male" || dam.sex !== "female") return blocked(state, "Pair a male with a female.");
-  if (!isFertile(sire) || !isFertile(dam)) {
-    return blocked(state, "Both parents must be adults. Fertility closes when they become elders.");
+  if (!isFertile(dam)) {
+    return blocked(state, "The dam must be an adult. Fertility closes when she becomes an elder.");
   }
   if (state.creatures.filter((c) => c.status === "active").length >= state.capacity) {
     return blocked(state, "The ranch is full. Archive or release something first.");
@@ -651,8 +720,14 @@ function doBreed(
   const items = itemIds.map(itemById);
   const load = loadFromItems(items);
 
+  if (external && state.inventory.motes < external.fee) {
+    return blocked(state, `${external.station} asks ${external.fee} motes for that pairing.`);
+  }
+
   const { rng: breedingRng, cursor } = rollFor(state, "breed");
-  const f = projectedInbreeding(state, sireId, damId);
+  // A stud has no pedigree here, so Wright's F is zero by construction — which
+  // is the entire reason a closed herd pays the fee.
+  const f = external ? 0 : projectedInbreeding(state, sireId, damId);
 
   const result = breed(sire.genome, dam.genome, map, breedingRng, {
     inbreeding: f,
@@ -680,10 +755,16 @@ function doBreed(
     cost > 0 ? { ...c, lifespanDays: Math.max(c.ageDays + 1, c.lifespanDays - cost) } : c;
 
   const events: GameEvent[] = [];
-  let creatures = state.creatures.map((c) => (c.id === sireId || c.id === damId ? withCost(c) : c));
+  let creatures = state.creatures.map((c) =>
+    c.id === damId || (!external && c.id === sireId) ? withCost(c) : c,
+  );
   let nextId = state.nextId;
-  let pedigree = state.pedigree;
+  // The stud joins the pedigree as an unrelated founder. Without a record his
+  // descendants would have a father the kinship maths cannot see, and every F
+  // computed downstream would be quietly wrong.
+  let pedigree = external ? [...state.pedigree, { id: sireId, name: sire.name, generation: 0 }] : state.pedigree;
   let compendium = state.compendium;
+  if (external) inventory = { ...inventory, motes: inventory.motes - external.fee };
 
   if (result.outcome === "no-egg") {
     events.push({ kind: "noEgg" });

@@ -17,7 +17,7 @@ decision, it does not ship.
 | 3 | Core loop: breed, hatch, raise, age, die | done |
 | 4 | Combat and expeditions | done |
 | 5 | Content: six species, evolution, campaign | done |
-| 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | not started |
+| 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | done |
 | 7 | Polish: audio, compendium, genome codes, a11y | not started |
 
 ## Layout
@@ -169,5 +169,46 @@ destination names an animal: travelling to the Galeshore is how a Quillfen
 station comes home with a Kite-Ossel, and it is the only way. That is the
 diegetic answer to a closed herd's problem, and it costs what an expedition
 costs.
+
+## The modes
+
+Seven besides the campaign, each opened by a predicate over the save rather than
+by a flag anyone has to remember to set.
+
+**Exhibition** judges the animal alone — conformation to a rotating seasonal
+standard, rarity, coherence and condition. Never a combat stat and never a
+genotype, because a ring that leaked one would be a free Deep Sequencer. Rarity
+is measured, not tagged: it is the surprisal of the *appearance* under that
+species' own wild allele frequencies.
+
+**Breeding Trials** are fifty-four authored puzzles, nine per species, curved
+across five tiers. Each is a closed ranch with a generation cap and no fen to
+catch anything from, scored on generations, purity and Wright's F — which pull
+against each other, because the fast answer is the inbred one. Every one is
+proved solvable in CI by a solver playing the real `breed()`.
+
+**Daily Genome** gives everyone the same pair, pool and target, seeded from the
+date, with one attempt. The puzzle is read off the pair rather than hoped for,
+so it is always solvable — a generated target the pair cannot reach would be a
+day on which every player in the world fails.
+
+**Rival Ranch** fights snapshots. A ghost is three genome codes plus loadout and
+condition, so a fight is a pure function of two snapshots and a seed and
+resolves identically on both machines without either talking to the other.
+Nothing can be hurt.
+
+**Stud Exchange** publishes a male as a pasteable offer. Breeding to one gives
+you a gamete and nothing else — no pedigree, no disclosure you did not pay for —
+and because a stud has no pedigree on your ranch, F for the pairing is zero.
+That is the whole reason a closed herd pays the fee.
+
+**Legacy** begins again carrying one archived ancestor's genome into a new
+population, with fewer founders and fewer berths each depth. Harder in this
+game's own terms: the bottleneck arrives sooner.
+
+Genome codes underpin the last three. Crockford base32 with a checksum, and a
+test corrupts every character position to every other symbol and asserts that
+not one corruption is ever accepted — a code that decoded into a *different
+valid genome* would look exactly like the genetics being broken.
 
 See `DECISIONS.md` for why each of those works the way it does.

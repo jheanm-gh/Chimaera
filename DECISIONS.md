@@ -647,6 +647,136 @@ because the stat line is not what anyone will be thinking about four hours in.
 
 ---
 
+## Phase 6 — The modes
+
+### D64. A mode is open when the state says it is
+
+One table, one pure predicate per mode, evaluated against the save. Nothing sets
+an "unlocked" flag anywhere, which means an imported save, a migrated save and a
+Legacy run all agree about what the player can do without anybody having to
+remember to set a bit.
+
+Gates are the brief's, with one addition: expeditions want a League win as well
+as chapter 2. Two gates on the one mode that can permanently delete a creature
+is deliberate.
+
+### D65. The show ring reads the animal, and rarity is measured rather than tagged
+
+§4 asks for judging on "symmetry, rarity, colour coherence, conformation".
+Symmetry is not judgeable here — the rig is symmetric by construction, so a
+symmetry score would be a constant with extra steps. It is replaced by
+*condition*: how close raising got the animal to its own ceiling, which is
+husbandry rather than combat and is the category a patient player wins without
+breeding anything new.
+
+Rarity is the surprisal of the *appearance* under the species' own wild allele
+frequencies, normalised against that species' baseline entropy so the number
+means the same thing on a Quillfen and an Ashen Lorric. Nothing is hand-tagged
+as rare; a coat is rare because the maths says so.
+
+Calibrating it found two real bugs. Masked loci show labels no wild allele pair
+can produce, so each one was charging the full novel-allele surprisal — and an
+albino, a one-in-sixteen coat, came out as the rarest thing the judges had ever
+seen. A sex-limited locus showing "hidden" did the same to every hen. Both are
+now skipped, and the gate locus is scored on its own merits at the four bits it
+actually costs.
+
+Judging never reads a genotype. A ring that leaked one would be a free Deep
+Sequencer, which would quietly undo the whole information game of §1.3.
+
+### D66. Every authored puzzle is proved solvable, in CI
+
+Fifty-four Breeding Trials, checked by a beam-search solver that plays the real
+`breed()` through the real gene map. It found four unsolvable ones — an allele
+absent from the pool entirely, a mislabelled suppressed phenotype, a locus that
+does not exist on that species, and two stat floors above what the given pair
+could reach — and seven that were solvable by one of the two animals the trial
+hands you.
+
+The seven were fixed systemically rather than one at a time: an answer must be
+*bred*, and a homozygous clause now requires two copies so a hemizygous cock
+stops satisfying "breeds true" by existing. A rule beats editing seven starting
+pairs and hoping the eighth never happens.
+
+Generations do not separate the tiers — the solver breeds far more per
+generation than a ten-berth trial ranch can hold — so difficulty is measured as
+offspring examined, which rises 4 / 9 / 24 / 51 / 58 across the five tiers.
+
+### D67. The Daily Genome reads its target off the pair
+
+A generated target the given pair cannot reach is a day on which every player in
+the world fails, and there is no patch that can un-ruin it. So the generator
+draws the pair first and derives the puzzle from it: an allele both parents
+carry can always be fixed, a phenotype one of them shows can always be thrown
+again.
+
+Two contradiction classes surfaced and were closed — asking for a lethal's
+phenotype alongside a clean panel (showing it *means* carrying it), and fixing
+an epistatic gate shut while asking to see what it masks. 180 consecutive days
+now solve, and the test walks six months.
+
+### D68. Genome codes fail loudly or not at all
+
+Rival Ranch and the Stud Exchange move a genome between two machines that never
+talk. The outcome that must not happen is a code decoding into a *different but
+valid* genome: the player breeds to it, gets an inexplicable result, and
+concludes the genetics are broken.
+
+Every code carries a checksum, and a test corrupts every character position to
+every other symbol — over three thousand mutations — and asserts that not one is
+accepted. Crockford's base32 so there is no 1/l or 0/O confusion, and the
+decoder folds the confusables and forgives hyphens, because people add hyphens.
+
+A packed format would halve the ninety-five characters. It was not worth it:
+ninety-five and fifty are both "paste it" lengths rather than "read it aloud"
+lengths, and a decoder anyone can follow is worth forty-four characters.
+
+### D69. A ghost cannot be hurt, and a stud is never yours
+
+Rival Ranch is a measuring instrument. A snapshot fights identically every time
+it is challenged, nothing carries out of the fight, and no creature can be lost
+— §4 says ghost data, and ghost data has nothing at stake but the record.
+
+The Stud Exchange gives you one gamete's worth of someone else's work and
+nothing else. The stud is not on your ranch, has no pedigree there, and
+therefore contributes Wright's F of exactly zero — which is the entire reason a
+closed herd pays the fee, and the reason the mode is a relief valve rather than
+a shop. He does join the pedigree as an unrelated founder, because without a
+record his descendants would have a father the kinship maths cannot see and
+every F downstream would be quietly wrong.
+
+The fee is charged whether or not the pairing takes. A stud fee is not refunded
+for a barren season, and neither is a mutagen.
+
+### D70. Legacy tightens the bottleneck instead of inflating the opposition
+
+§4 asks for "harder trials" on NG+. Multiplying the opposition's numbers would
+be wrong twice over: it makes combat the difficulty, and combat is the fitness
+function rather than the game.
+
+So each depth starts from fewer founders and a smaller ranch. The closed-herd
+problem — the thing the entire inbreeding model exists to create — arrives
+sooner and bites harder, and at depth 3 you begin with a pair and eight berths.
+Founders never fall below two, because a run that cannot start is not
+difficulty.
+
+The ancestor carries its genome and its revealed loci. Not its raising, not its
+branch, not its bond: carrying a finished animal across would delete the raising
+game for a generation, and the genome is the part that was earned.
+
+### D71. A trial is a whole second ranch, not a mode flag
+
+Breeding Trials and the Daily Genome open a side `RanchState` that the rest of
+the app operates on unchanged. Pairing, the Punnett predictor, the pedigree view
+and the creature panel all work inside a trial without a single screen knowing a
+trial exists.
+
+The closed-ranch rules are enforced in the reducer rather than by convention:
+`state.trial` caps generations and refuses wild stock, so a puzzle cannot be
+solved by walking to the reedbank and catching the answer.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.
@@ -694,3 +824,18 @@ them — but §4 mode ideas like Stud Exchange and Exhibition want mixed stock, 
 Phase 6 will need `mapFor(creature)` threaded through breeding, combat and
 expeditions. Flagged now because it is a reducer-shaped change, not a UI one,
 and it is cheaper before the mode surface grows.
+
+**A5. The Stud Exchange and Rival Ranch are honour systems.** §4 asks for a
+social layer with no server, and ghost data delivers that — but a player who
+edits a pasted ghost or a stud offer can hand themselves a perfect animal.
+Signing would need a key, and a key shipped in the client is not a key. The
+current position is that this is a single-player game with a paste box, that
+cheating in it costs the cheat and nobody else, and that the correct time to
+solve it is when there is a leaderboard worth defending. Flagged so that
+decision is deliberate rather than assumed.
+
+**A6. The Daily Genome leaderboard is local.** §4 calls for a global one, which
+needs a server, which the brief also says v1 does not have. Scores are computed,
+integer, deterministic and stored per date, so a leaderboard is a submission
+endpoint away — but there is no endpoint, and a "global leaderboard" that only
+ever shows one player would be a worse lie than an honest local best.

@@ -18,6 +18,7 @@
 
 import type { EpigeneticMarks, Genome, LocusId, RngState, Sex, SpeciesId, StatId } from "@chimaera/genetics";
 import type { CampaignState } from "./campaign.js";
+import type { StudOffer } from "./exchange.js";
 import type { TrialState } from "./trials.js";
 import type { Role, Stance } from "./combat.js";
 import type { ExpeditionState } from "./expedition.js";
@@ -315,7 +316,13 @@ export type Action =
     }
   | { readonly kind: "expeditionMove"; readonly nodeId: string }
   | { readonly kind: "expeditionWithdraw" }
-  | { readonly kind: "enterShow"; readonly id: CreatureId; readonly tier: number };
+  | { readonly kind: "enterShow"; readonly id: CreatureId; readonly tier: number }
+  | {
+      readonly kind: "breedToStud";
+      readonly damId: CreatureId;
+      readonly offer: StudOffer;
+      readonly items?: readonly string[];
+    };
 
 export type GameEvent =
   | { readonly kind: "dayPassed"; readonly day: number }

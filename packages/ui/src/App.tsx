@@ -4,6 +4,7 @@ import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
+import { ModesView } from "./components/ModesView.js";
 import { NewStation } from "./components/NewStation.js";
 import { CreaturePanel } from "./components/CreaturePanel.js";
 import { FieldView } from "./components/FieldView.js";
@@ -13,13 +14,22 @@ import { VirtualGrid } from "./components/VirtualGrid.js";
 import { exportToFile, importFromFile } from "./db.js";
 import { useRanch } from "./useRanch.js";
 
-type Tab = "ranch" | "pairing" | "field" | "commission" | "pedigree" | "archive" | "journal";
+type Tab =
+  | "ranch"
+  | "pairing"
+  | "field"
+  | "commission"
+  | "modes"
+  | "pedigree"
+  | "archive"
+  | "journal";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "ranch", label: "Ranch" },
   { id: "pairing", label: "Pairing" },
   { id: "field", label: "Field" },
   { id: "commission", label: "Commission" },
+  { id: "modes", label: "Modes" },
   { id: "pedigree", label: "Pedigree" },
   { id: "archive", label: "Archive" },
   { id: "journal", label: "Journal" },
@@ -159,6 +169,21 @@ export function App() {
         </label>
       </nav>
 
+      {ranch.side ? (
+        <p className="side-banner" role="status">
+          <strong>
+            {ranch.side.trial?.kind === "daily" ? "Daily Genome" : "Breeding Trial"} in progress
+          </strong>
+          <span>
+            Every screen is working on the trial, not on your station. Generation limit{" "}
+            {ranch.side.trial?.generations}.
+          </span>
+          <button type="button" onClick={() => setTab("modes")}>
+            Back to the trial sheet
+          </button>
+        </p>
+      ) : null}
+
       {ranch.lastBlocked ? (
         <p className="blocked" role="status">
           {ranch.lastBlocked}
@@ -209,6 +234,8 @@ export function App() {
         {tab === "field" ? <FieldView ranch={ranch} /> : null}
 
         {tab === "commission" ? <CommissionView ranch={ranch} /> : null}
+
+        {tab === "modes" ? <ModesView ranch={ranch} /> : null}
 
         {tab === "pedigree" ? (
           <PedigreeView state={ranch.state} rootId={selected?.id} onSelect={setSelectedId} />
@@ -293,6 +320,12 @@ function CreatureCard({
   );
 }
 
+function ordinal(place: number): string {
+  const tens = place % 100;
+  if (tens >= 11 && tens <= 13) return `${place}th`;
+  return `${place}${["th", "st", "nd", "rd"][place % 10] ?? "th"}`;
+}
+
 function describe(event: GameEvent): string {
   switch (event.kind) {
     case "hatched":
@@ -339,5 +372,9 @@ function describe(event: GameEvent): string {
       return `Chapter delivered: ${event.title}. The board pays ${event.motes} motes.`;
     case "dayPassed":
       return `Day ${event.day}.`;
+    case "placed":
+      return event.placement === 1
+        ? `${event.name} won the ${event.standard} — ${event.purse} motes.`
+        : `${event.name} placed ${ordinal(event.placement)} of ${event.field} under the ${event.standard}.`;
   }
 }
