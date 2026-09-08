@@ -45,6 +45,10 @@ import {
   tickCreature,
 } from "./lifecycle.js";
 import { enterExpedition, expeditionMove, expeditionWithdraw, runBout } from "./runs.js";
+import { enterShow } from "./shows.js";
+import { trialGenomes } from "./trials.js";
+import type { Trial } from "./trials.js";
+import { NO_RECORDS } from "./types.js";
 import type {
   Action,
   ActionResult,
@@ -56,10 +60,11 @@ import type {
 
 /**
  * v2 added `campaign`; v3 added `homeSpecies` and named the species living in
- * an expedition's region. The migrations in `save.ts` fill both in, which is
- * the whole reason the chain was written before there was anything to migrate.
+ * an expedition's region; v4 added `records`, where the §4 modes keep their
+ * results. The migrations in `save.ts` fill each in, which is the whole reason
+ * the chain was written before there was anything to migrate.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** Day costs, so that every meaningful action moves the calendar (§2.1). */
 export const DAY_COST = { breed: 1, tend: 1, catchWild: 3 } as const;
@@ -186,6 +191,67 @@ export function createRanch(options: NewRanchOptions): RanchState {
     archiveCapacity: 12,
     leagueTier: 0,
     campaign: NEW_CAMPAIGN,
+    records: NO_RECORDS,
+  };
+}
+
+/**
+ * A trial's own ranch: the pair, the cap, and nothing else.
+ *
+ * Small capacity on purpose. A Breeding Trial that lets you keep forty animals
+ * is a trial you brute-force; keeping ten means every hatch is a decision about
+ * what to let go of, which is the same decision the main game is about.
+ */
+export function createTrialRanch(
+  trial: Trial,
+  options: { readonly seed?: string; readonly genomes?: { sire: Genome; dam: Genome }; readonly kind?: "trial" | "daily" } = {},
+): RanchState {
+  const map = geneMapById(trial.species);
+  // Daily Genome hands over the pair directly rather than as a spec: it draws
+  // its pair from the wild pool and then reads the target off it, so the pair
+  // exists before the puzzle does.
+  const { sire, dam } = options.genomes ?? trialGenomes(trial);
+  const seed = options.seed ?? `trial:${trial.id}`;
+  const base = createRanch({
+    seed,
+    species: trial.species,
+    founders: 0,
+    capacity: 10,
+    motes: 0,
+    ...(trial.items ? { startingItems: trial.items } : {}),
+  });
+
+  const creatures = [
+    { id: "t1", genome: sire, name: "The sire" },
+    { id: "t2", genome: dam, name: "The dam" },
+  ].map(({ id, genome, name }) =>
+    newCreature({
+      id,
+      genome,
+      phenotype: expressPhenotype(genome, map),
+      map,
+      name,
+      day: 0,
+      origin: "gift",
+      inbreeding: 0,
+      generation: 0,
+      ageDays: 58,
+    }),
+  );
+
+  return {
+    ...base,
+    nextId: 3,
+    creatures,
+    pedigree: creatures.map((c) => ({ id: c.id, name: c.name, generation: 0 })),
+    // A trial is not a campaign, and the commissions have nothing to say here.
+    campaign: { chapter: 9, met: [], completed: [] },
+    trial: {
+      kind: options.kind ?? "trial",
+      id: trial.id,
+      generations: trial.generations,
+      startedOnDay: 0,
+    },
   };
 }
 
@@ -380,6 +446,8 @@ function dispatch(state: RanchState, action: Action): ActionResult {
       return expeditionMove(state, action.nodeId, advance);
     case "expeditionWithdraw":
       return expeditionWithdraw(state, advance);
+    case "enterShow":
+      return enterShow(state, action.id, action.tier, phenotypeOf);
   }
 }
 
@@ -566,6 +634,15 @@ function doBreed(
   }
   if (state.creatures.filter((c) => c.status === "active").length >= state.capacity) {
     return blocked(state, "The ranch is full. Archive or release something first.");
+  }
+  if (state.trial) {
+    const next = Math.max(sire.generation, dam.generation) + 1;
+    if (next > state.trial.generations) {
+      return blocked(
+        state,
+        `That would be generation ${next}. This one runs to ${state.trial.generations}.`,
+      );
+    }
   }
 
   for (const id of itemIds) {
@@ -873,6 +950,9 @@ function doRelease(state: RanchState, id: CreatureId): ActionResult {
 }
 
 function doCatchWild(state: RanchState, species?: SpeciesId): ActionResult {
+  if (state.trial) {
+    return blocked(state, "There is no fen here. What you were given is what you have.");
+  }
   if (state.creatures.filter((c) => c.status === "active").length >= state.capacity) {
     return blocked(state, "The ranch is full.");
   }

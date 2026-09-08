@@ -15,6 +15,7 @@ import type { SerialisedGenome } from "@chimaera/genetics";
 import { speciesForBiome } from "./bestiary.js";
 import { NEW_CAMPAIGN } from "./campaign.js";
 import { SAVE_VERSION } from "./ranch.js";
+import { NO_RECORDS } from "./types.js";
 import type { Creature, RanchState } from "./types.js";
 
 export interface SaveFile {
@@ -93,7 +94,10 @@ const MIGRATIONS: readonly ((file: SaveFile) => SaveFile)[] = [
       } as SerialisedRanch,
     };
   },
-  // v3 -> v4 goes here.
+  // v3 -> v4: the modes arrived and needed somewhere to keep their results. A
+  // v3 ranch has played none of them, which is what an empty record set means.
+  (file) => ({ ...file, state: { ...file.state, records: NO_RECORDS } }),
+  // v4 -> v5 goes here.
 ];
 
 function migrate(file: SaveFile): SaveFile {

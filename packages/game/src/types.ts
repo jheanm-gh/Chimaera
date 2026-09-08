@@ -18,6 +18,7 @@
 
 import type { EpigeneticMarks, Genome, LocusId, RngState, Sex, SpeciesId, StatId } from "@chimaera/genetics";
 import type { CampaignState } from "./campaign.js";
+import type { TrialState } from "./trials.js";
 import type { Role, Stance } from "./combat.js";
 import type { ExpeditionState } from "./expedition.js";
 
@@ -137,6 +138,80 @@ export interface PedigreeRecord {
   readonly generation: number;
 }
 
+/**
+ * What the modes remember (§4).
+ *
+ * One field on the ranch rather than five, so the save format moved once
+ * instead of five times, and so a mode that has never been played is an empty
+ * collection rather than an absent one.
+ */
+export interface ModeRecords {
+  /** Exhibition placings, newest last. */
+  readonly ribbons: readonly Ribbon[];
+  /** Best result per Breeding Trial, by trial id. */
+  readonly trials: Readonly<Record<string, TrialRecord>>;
+  /** One attempt per date key. Present means spent. */
+  readonly daily: Readonly<Record<string, DailyRecord>>;
+  /** Rival Ranch ghosts beaten, by ghost id. */
+  readonly rivals: readonly string[];
+  /** Studs published from this station, and what they have earned. */
+  readonly studs: readonly StudRecord[];
+  /** How many times the story has been carried forward. 0 on a first run. */
+  readonly legacyDepth: number;
+}
+
+export interface Ribbon {
+  readonly day: number;
+  readonly standard: string;
+  readonly species: SpeciesId;
+  readonly creatureId: CreatureId;
+  readonly name: string;
+  /** 1 is first. */
+  readonly placement: number;
+  readonly field: number;
+  readonly score: number;
+  readonly tier: number;
+}
+
+export interface TrialRecord {
+  readonly cleared: boolean;
+  /** Generations used by the best clear. Lower is better. */
+  readonly generations: number;
+  /** Wright's F of the winning animal. Lower is better. */
+  readonly inbreeding: number;
+  readonly score: number;
+  readonly onDay: number;
+}
+
+export interface DailyRecord {
+  readonly dateKey: string;
+  readonly score: number;
+  readonly generations: number;
+  readonly inbreeding: number;
+  readonly matched: number;
+  readonly total: number;
+  readonly finished: boolean;
+}
+
+export interface StudRecord {
+  readonly code: string;
+  readonly name: string;
+  readonly species: SpeciesId;
+  readonly publishedOnDay: number;
+  /** Pairings other stations have made to it. */
+  readonly uses: number;
+  readonly earned: number;
+}
+
+export const NO_RECORDS: ModeRecords = {
+  ribbons: [],
+  trials: {},
+  daily: {},
+  rivals: [],
+  studs: [],
+  legacyDepth: 0,
+};
+
 export interface RanchState {
   readonly version: number;
   readonly seed: string;
@@ -191,6 +266,18 @@ export interface RanchState {
    * restored save disagree with its own ledger.
    */
   readonly campaign: CampaignState;
+
+  /** Everything the §4 modes remember. */
+  readonly records: ModeRecords;
+
+  /**
+   * Set when this ranch *is* a Breeding Trial or a Daily Genome run.
+   *
+   * A marker rather than a convention: the reducer reads it to cap generations
+   * and to refuse wild stock, so a puzzle cannot be solved by walking to the
+   * reedbank and catching the answer.
+   */
+  readonly trial?: TrialState | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +314,8 @@ export type Action =
       readonly species?: SpeciesId;
     }
   | { readonly kind: "expeditionMove"; readonly nodeId: string }
-  | { readonly kind: "expeditionWithdraw" };
+  | { readonly kind: "expeditionWithdraw" }
+  | { readonly kind: "enterShow"; readonly id: CreatureId; readonly tier: number };
 
 export type GameEvent =
   | { readonly kind: "dayPassed"; readonly day: number }
@@ -260,6 +348,15 @@ export type GameEvent =
       readonly chapter: string;
       readonly objective: string;
       readonly label: string;
+    }
+  | {
+      readonly kind: "placed";
+      readonly id: CreatureId;
+      readonly name: string;
+      readonly placement: number;
+      readonly field: number;
+      readonly standard: string;
+      readonly purse: number;
     }
   | {
       readonly kind: "chapterComplete";
