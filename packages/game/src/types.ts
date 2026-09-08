@@ -17,6 +17,7 @@
  */
 
 import type { EpigeneticMarks, Genome, LocusId, RngState, Sex, SpeciesId, StatId } from "@chimaera/genetics";
+import type { CampaignState } from "./campaign.js";
 import type { Role, Stance } from "./combat.js";
 import type { ExpeditionState } from "./expedition.js";
 
@@ -29,7 +30,14 @@ export type CreatureStatus = "active" | "archived" | "dead";
 
 /** §2.2, the four raising axes. Each has a genetic interaction. */
 export type DietId = "forage" | "silt" | "carrion" | "bloom" | "fasting";
-export type HabitatId = "mirefen" | "deepfen" | "reedbank" | "emberpool" | "galeshore";
+export type HabitatId =
+  | "mirefen"
+  | "deepfen"
+  | "reedbank"
+  | "emberpool"
+  | "galeshore"
+  | "reedwold"
+  | "thornbrake";
 export type TrainingId = "none" | "sprint" | "endurance" | "stillness";
 
 export interface Creature {
@@ -166,6 +174,15 @@ export interface RanchState {
   readonly expedition?: ExpeditionState | undefined;
   /** Highest League tier cleared. Cleared tiers can be bulk-simulated (§3). */
   readonly leagueTier: number;
+
+  /**
+   * Campaign progress (§4.1).
+   *
+   * It lives in the save rather than beside it because every objective is a
+   * question asked of this state: keeping the answers anywhere else would let a
+   * restored save disagree with its own ledger.
+   */
+  readonly campaign: CampaignState;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +240,19 @@ export type GameEvent =
   | { readonly kind: "expeditionEntered"; readonly region: string }
   | { readonly kind: "expeditionNode"; readonly node: string; readonly detail: string }
   | { readonly kind: "expeditionEnded"; readonly outcome: "won" | "lost" | "withdrawn"; readonly summary: string }
-  | { readonly kind: "lost"; readonly id: CreatureId; readonly name: string; readonly where: string };
+  | { readonly kind: "lost"; readonly id: CreatureId; readonly name: string; readonly where: string }
+  | {
+      readonly kind: "objectiveMet";
+      readonly chapter: string;
+      readonly objective: string;
+      readonly label: string;
+    }
+  | {
+      readonly kind: "chapterComplete";
+      readonly chapter: string;
+      readonly title: string;
+      readonly motes: number;
+    };
 
 export interface ActionResult {
   readonly state: RanchState;

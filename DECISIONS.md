@@ -465,6 +465,132 @@ unconscious is not silently revived, and is not double-counted as newly lost.
 
 ---
 
+## Phase 5 — Content: the roster and the campaign
+
+### D51. The campaign is built from the gene map, not written against one species
+
+§4.1 asks for eight chapters, one genetic concept each. Written against the
+Quillfen they would name `DORSAL`, `LN_star` and `PIG` — and teach nothing at
+all on a Silt-Adder. `buildCampaign(map)` instead *selects* each chapter's
+targets out of whatever species the ranch is running: its cleanest dominance
+locus, its tightest linked pair, its epistatic gate, its lethals, its novel
+alleles. The prose says what the concept is; the map says what the animal is.
+
+The payoff is that chapter 4 on an Ashen Lorric genuinely poses the two-stage
+cascade that chapter 4 on a Quillfen does not, with no second campaign authored.
+The cost is that a species which cannot supply a target throws at map-compile
+time — which is how the Ashen Lorric's missing plain-dominance locus was found
+(D54).
+
+### D52. Objectives are sticky predicates over the save, not quest flags
+
+An objective is a question asked of `RanchState`, re-asked after every action,
+and remembered once true. Nothing sets a flag from inside a handler.
+
+Three things follow, and all three are the reason. A chapter cannot be failed by
+doing the right thing in the wrong order. An objective is not lost when the
+creature that satisfied it dies — which matters enormously in a game where
+everything dies. And the whole campaign can be tested without simulating a
+player: `campaign.test.ts` asks each objective of a state that should satisfy it
+and one that should not.
+
+Only the *active* chapter is evaluated. A player who happens to satisfy chapter
+7 while working through chapter 2 has not learned chapter 7, and crediting it
+would hand them a Deep Sequencer before the lesson that makes it worth owning.
+
+### D53. Chapter 1 asks for a cross, not for an animal
+
+The first draft of `c1-recessive` was "own a living creature showing the
+recessive". A scripted playthrough completed the chapter on **day zero**,
+because one of the four founders happened to show it. That satisfies the words
+and violates the design law: no pressure was put on any breeding decision.
+
+It now asks for a recessive *bred from two parents that both show the dominant*
+— which is the Mendelian lesson stated as a state predicate. The same script now
+needs 13 pairings and 38 days.
+
+### D54. Two species were missing a locus, and the tests said so
+
+Both found by content tests rather than by eye.
+
+The **Ashen Lorric** had no plain autosomal dominance locus at all: everything
+it carried was gated, lethal or blended, so the campaign's first lesson could
+not be taught on it. A late-game species is allowed to be hard; it is not
+allowed to have no shallow end. `TOE` was added.
+
+The **Silt-Adder** had no form gene. Coil thickness was its only shape lever,
+and the silhouette rasteriser crops to content before rasterising — deliberately,
+so the Ranch grid reads a big Bramblehog and a small one as the same animal — so
+thickness alone moved its icon by 5% across its entire range. A species with no
+form genetics has nothing to breed *for* beyond colour. `TAILTIP` was added, and
+the coil range widened.
+
+### D55. The roster is separated by measurement, not by assertion
+
+Six body plans on one rig, and a pairwise silhouette test with a 10% floor. It
+failed twice.
+
+The Quillfen and the Kite-Ossel came out 9.1% apart — two wide bars in the Ranch
+grid. Deepening the Quillfen's trunk and raising its frond crown took the pair
+to 15.1%. Thinning the Kite-Ossel then pushed it into the Silt-Adder at 11.2%,
+which was fixed not by making it thinner still but by lengthening its dangling
+limbs: the one thing a limbless animal can never have. Closest pair is now 13.3%.
+
+The lesson is the process, not the numbers. Every one of those adjustments was
+chosen because a measurement said the roster was failing, and the same
+measurement said when it had stopped.
+
+### D56. A secret branch must be unreachable by raising alone, and that is tested
+
+§2.3 asks for branches gated on genotype *and* raising path. Probing which
+fields a condition reads turned out to be the wrong test — `affinities` and
+`build` are as genetic as `carries`, and a proxy cannot see a number being read.
+
+So the test asks the real question instead: give 120 wild animals of that
+species perfect bonding, maxed achievement, and the best habitat, diet, training
+and held item in the catalogue, then count how many can still reach the branch.
+Fewer than 40% may. A branch most animals can walk into with the right furniture
+is a checklist, not a secret.
+
+The same sweep found the Sallowfinch's `hen-quiet` branch gated only on "not
+bright plumage", which every hen and most cocks satisfy — making the floor
+branch below it unreachable. Five authored forms, four that could ever appear.
+
+### D57. Feed closes a fraction of the remaining gap
+
+Conditioning items had two obvious shapes: add a flat number to the achieved
+stat, or close a share of the distance to the ceiling. The first needs a clamp
+bolted on to stop it exceeding genes. The second cannot exceed them at all, gets
+weaker the better the animal already is, and is the same rule the daily growth
+tick already uses. Feed finishes a well-bred creature and cannot rescue a badly
+bred one.
+
+Decor is the same argument in the other direction: it floors a mismatched
+habitat back to neutral and can never lift a matched one above it, so the
+affinity allele remains the only thing that grants a bonus. Furniture is damage
+control; genes are advantage.
+
+### D58. The test-cross kit reads the clutch
+
+A "better lens" would have been a fourth information tier and a fifth thing to
+save up for. A test cross is not more information about one animal — it is the
+*same* reading applied to every offspring at once, which is why the interesting
+part is that you must breed before you can use it. One item, one new field on
+`ItemEffect`, and a reason to plan two steps ahead.
+
+### D59. The save format moved to v2, and the migration chain earned itself
+
+`campaign` is a required field on `RanchState`, so a v1 save cannot be loaded
+without one. The chain written in Phase 3 with an empty array and a comment took
+exactly one function to extend, and a test forges a v1 save and loads it — in
+the browser as well as in vitest, through the app's own import button.
+
+A migrated v1 ranch starts at chapter 1 with nothing recorded, which is correct:
+the objectives are re-asked of the state on the next action, and anything
+already true ticks immediately.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.
@@ -491,8 +617,22 @@ because the slot count is now a content constraint: the number of nameable
 discoveries per species is fixed at authoring time, and four per species will
 feel thin if the game succeeds.
 
+**A3. RESOLVED in Phase 5 (D51).** Chapter 1 now teaches dominance on a locus
+explicitly chosen to contain no lethal, and chapter 5 teaches lethals on
+purpose. A player still meets a failed egg early; they now meet the explanation
+in the chapter built for it. Original argument follows.
+
 **A3. Lethal alleles at 4% wild frequency.** High enough that a player meets one
 in their first hour, which the campaign needs. It also means roughly 1 in 600
 wild-pair eggs fails to a doubled lethal before the player has any idea why.
 That is the intended lesson, but it wants a tutorial beat in Chapter 1, not
 Chapter 5.
+
+**A4. Ranch state is single-species.** `applyAction(state, action, map)` takes
+one gene map, so a save holds one species' stock. Six species ship, and each is
+played on its own ranch. That is defensible for the campaign — a commission is a
+posting, and the eight chapters are the same eight lessons wherever you take
+them — but §4 mode ideas like Stud Exchange and Exhibition want mixed stock, and
+Phase 6 will need `mapFor(creature)` threaded through breeding, combat and
+expeditions. Flagged now because it is a reducer-shaped change, not a UI one,
+and it is cheaper before the mode surface grows.

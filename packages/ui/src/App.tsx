@@ -1,7 +1,8 @@
-import { activeCreatures, currentStats, isFertile, phenotypeOf } from "@chimaera/game";
+import { activeCreatures, CHAPTER_COUNT, currentStats, isFertile, phenotypeOf } from "@chimaera/game";
 import type { Creature, GameEvent } from "@chimaera/game";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
+import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
 import { CreaturePanel } from "./components/CreaturePanel.js";
 import { FieldView } from "./components/FieldView.js";
@@ -11,12 +12,13 @@ import { VirtualGrid } from "./components/VirtualGrid.js";
 import { exportToFile, importFromFile } from "./db.js";
 import { map, useRanch } from "./useRanch.js";
 
-type Tab = "ranch" | "pairing" | "field" | "pedigree" | "archive" | "journal";
+type Tab = "ranch" | "pairing" | "field" | "commission" | "pedigree" | "archive" | "journal";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "ranch", label: "Ranch" },
   { id: "pairing", label: "Pairing" },
   { id: "field", label: "Field" },
+  { id: "commission", label: "Commission" },
   { id: "pedigree", label: "Pedigree" },
   { id: "archive", label: "Archive" },
   { id: "journal", label: "Journal" },
@@ -75,6 +77,12 @@ export function App() {
           <div>
             <dt>Motes</dt>
             <dd>{ranch.state.inventory.motes}</dd>
+          </div>
+          <div>
+            <dt>Chapter</dt>
+            <dd>
+              {Math.min(ranch.state.campaign.chapter, CHAPTER_COUNT)}/{CHAPTER_COUNT}
+            </dd>
           </div>
         </dl>
         <div className="topbar-actions">
@@ -186,6 +194,8 @@ export function App() {
         {tab === "pairing" ? <PairingView ranch={ranch} mode={mode} /> : null}
 
         {tab === "field" ? <FieldView ranch={ranch} /> : null}
+
+        {tab === "commission" ? <CommissionView ranch={ranch} /> : null}
 
         {tab === "pedigree" ? (
           <PedigreeView state={ranch.state} rootId={selected?.id} onSelect={setSelectedId} />
@@ -309,6 +319,10 @@ function describe(event: GameEvent): string {
       return `${event.name} was lost at ${event.where}. It is not coming back.`;
     case "blocked":
       return event.reason;
+    case "objectiveMet":
+      return `Commission met: ${event.label}`;
+    case "chapterComplete":
+      return `Chapter delivered: ${event.title}. The board pays ${event.motes} motes.`;
     case "dayPassed":
       return `Day ${event.day}.`;
   }

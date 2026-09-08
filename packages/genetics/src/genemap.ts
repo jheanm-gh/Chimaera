@@ -140,8 +140,19 @@ export class GeneMap {
     for (const rule of species.epistasis) {
       const gate = this.lociById.get(rule.gate);
       if (!gate) throw new Error(`${species.id}: epistasis "${rule.id}" gates unknown locus "${rule.gate}"`);
+      void gate;
       if (!this.allelesByLocus.get(rule.gate)?.has(rule.when.allele)) {
         throw new Error(`${species.id}: epistasis "${rule.id}" references unknown allele "${rule.when.allele}"`);
+      }
+      for (const extra of rule.also ?? []) {
+        if (!this.lociById.has(extra.locus)) {
+          throw new Error(`${species.id}: epistasis "${rule.id}" also-gates unknown locus "${extra.locus}"`);
+        }
+        if (!this.allelesByLocus.get(extra.locus)?.has(extra.when.allele)) {
+          throw new Error(
+            `${species.id}: epistasis "${rule.id}" references unknown allele "${extra.when.allele}" at "${extra.locus}"`,
+          );
+        }
       }
     }
 

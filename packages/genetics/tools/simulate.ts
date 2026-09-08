@@ -395,11 +395,17 @@ function printVerdict(populations: readonly Population[]): void {
   heading("What to check");
   for (const population of populations) {
     const first = population.reports[1];
-    const last = population.reports[population.reports.length - 1] as GenerationReport;
+    // The last generation that still had animals in it. Reading the literal
+    // final row of a collapsed line reports "F 0.000 -> 0.000", which is true
+    // of an empty set and says the exact opposite of what happened.
+    const alive = [...population.reports].reverse().find((report) => report.population > 0);
+    const last = alive ?? (population.reports[population.reports.length - 1] as GenerationReport);
+    const died = population.reports.findIndex((report) => report.population === 0);
     console.log(
       `  ${population.label.padEnd(8)} F ${first?.meanF.toFixed(3)} -> ${last.meanF.toFixed(3)}   ` +
         `hatch ${pct(first?.eggRate ?? 0)} -> ${pct(last.eggRate)}   ` +
-        `N ${first?.population} -> ${last.population}`,
+        `N ${first?.population} -> ${last.population}` +
+        (died > 0 ? `   (line died out at generation ${died})` : ""),
     );
   }
   const closed = populations.find((p) => p.strategy === "closed");

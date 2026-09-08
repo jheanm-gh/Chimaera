@@ -150,6 +150,15 @@ export interface EpistasisRule {
   readonly name: string;
   readonly gate: LocusId;
   readonly when: EpistasisCondition;
+  /**
+   * Further loci that must *also* satisfy their condition for the gate to
+   * close, which is what a multi-stage cascade is.
+   *
+   * A single switch is the lesson a player learns first; a cascade is the
+   * species that teaches them the first lesson was a special case, because the
+   * test cross that solved one switch gives a contradictory answer against two.
+   */
+  readonly also?: readonly { readonly locus: LocusId; readonly when: EpistasisCondition }[];
   /** Loci carrying any of these tags stop expressing while the gate is closed. */
   readonly masksTags: readonly string[];
   readonly setTraits?: Readonly<Record<TraitId, string>>;

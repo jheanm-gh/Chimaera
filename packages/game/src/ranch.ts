@@ -26,6 +26,8 @@ import {
 } from "@chimaera/genetics";
 import type { MutagenLoad, Rng } from "@chimaera/genetics";
 import { equipmentById } from "./combat.js";
+import { advanceCampaign, buildCampaign, NEW_CAMPAIGN } from "./campaign.js";
+import type { CampaignView, Chapter } from "./campaign.js";
 import { itemById } from "./content.js";
 import type { ItemDef } from "./content.js";
 import { evolutionContext, resolveBranch, shouldEvolve } from "./evolution.js";
@@ -48,7 +50,12 @@ import type {
   RanchState,
 } from "./types.js";
 
-export const SAVE_VERSION = 1;
+/**
+ * v2 added `campaign`. The migration in `save.ts` fills it in, which is the
+ * whole reason the migration chain was written before there was anything to
+ * migrate.
+ */
+export const SAVE_VERSION = 2;
 
 /** Day costs, so that every meaningful action moves the calendar (§2.1). */
 export const DAY_COST = { breed: 1, tend: 1, catchWild: 3 } as const;
@@ -170,6 +177,7 @@ export function createRanch(map: GeneMap, options: NewRanchOptions): RanchState 
     capacity: options.capacity ?? 24,
     archiveCapacity: 12,
     leagueTier: 0,
+    campaign: NEW_CAMPAIGN,
   };
 }
 
@@ -267,7 +275,64 @@ export function projectedInbreeding(state: RanchState, sireId: CreatureId, damId
 // Actions
 // ---------------------------------------------------------------------------
 
+/**
+ * The campaign's chapters, built once per gene map.
+ *
+ * Chapters are derived from the species (see `campaign.ts`), so they are not a
+ * constant — but they are also not per-state, and rebuilding eight chapters on
+ * every action would put a species scan in the hot path of the reducer.
+ */
+const campaignCache = new WeakMap<GeneMap, readonly Chapter[]>();
+
+export function campaignFor(map: GeneMap): readonly Chapter[] {
+  const cached = campaignCache.get(map);
+  if (cached) return cached;
+  const chapters = buildCampaign(map);
+  campaignCache.set(map, chapters);
+  return chapters;
+}
+
+/** Everything the campaign's predicates are allowed to see. */
+export function campaignView(state: RanchState, map: GeneMap): CampaignView {
+  return { state, map, phenotype: (creature) => phenotypeOf(creature, map) };
+}
+
+/**
+ * Re-asks the active chapter's objectives after every player action.
+ *
+ * It runs once, on the outermost action — never on the `advance` calls that
+ * breeding and bouts make internally — so a single breed cannot tick an
+ * objective twice, and the events land in the same batch the player sees.
+ */
+function withCampaign(result: ActionResult, map: GeneMap): ActionResult {
+  const outcome = advanceCampaign(
+    result.state.campaign,
+    campaignView(result.state, map),
+    result.events,
+    campaignFor(map),
+  );
+  if (outcome.events.length === 0) return result;
+
+  let inventory = result.state.inventory;
+  if (outcome.reward) {
+    const items = { ...inventory.items };
+    for (const [id, count] of Object.entries(outcome.reward.items)) {
+      items[id] = (items[id] ?? 0) + count;
+    }
+    inventory = { ...inventory, motes: inventory.motes + outcome.reward.motes, items };
+  }
+
+  return {
+    state: { ...result.state, campaign: outcome.campaign, inventory },
+    events: [...result.events, ...outcome.events],
+  };
+}
+
 export function applyAction(state: RanchState, action: Action, map: GeneMap): ActionResult {
+  return withCampaign(dispatch(state, action, map), map);
+}
+
+function dispatch(state: RanchState, action: Action, map: GeneMap): ActionResult {
   switch (action.kind) {
     case "advanceDays":
       return advance(state, Math.max(0, Math.floor(action.days)), map);
@@ -636,12 +701,18 @@ function doTend(state: RanchState, id: CreatureId, map: GeneMap): ActionResult {
   return advance(tended, DAY_COST.tend, map);
 }
 
+/** Item effects that make sense carried around rather than consumed. */
+const HOLDABLE = new Set(["held", "decor", "trainingGear"]);
+
 function doHoldItem(state: RanchState, id: CreatureId, item: string | undefined): ActionResult {
   const creature = findCreature(state, id);
   if (!creature) return blocked(state, "That creature is not on the ranch.");
   if (item !== undefined) {
     if ((state.inventory.items[item] ?? 0) <= 0) return blocked(state, `You have no ${itemById(item).name}.`);
-    if (itemById(item).effect.kind !== "held") return blocked(state, "That item cannot be held.");
+    if (!HOLDABLE.has(itemById(item).effect.kind)) return blocked(state, "That item cannot be held.");
+    const heldElsewhere = state.creatures.some((c) => c.id !== id && c.heldItem === item);
+    const spare = (state.inventory.items[item] ?? 0) - state.creatures.filter((c) => c.heldItem === item).length;
+    if (heldElsewhere && spare <= 0) return blocked(state, `Every ${itemById(item).name} you own is already held.`);
   }
   return patch(state, id, (c) => ({ ...c, heldItem: item }));
 }
@@ -659,6 +730,8 @@ function doUseItem(
   const item = itemById(itemId);
   const events: GameEvent[] = [];
   let next = creature;
+  let archiveSlots = 0;
+  let spreadTo: LocusId | undefined;
 
   switch (item.effect.kind) {
     case "reveal": {
@@ -678,6 +751,33 @@ function doUseItem(
         phaseKnown: creature.phaseKnown || (item.effect.phase ?? false),
       };
       events.push({ kind: "revealed", id, loci: [...revealed].sort() });
+      // A test cross reads the clutch, not the animal. Its whole value is that
+      // you bred first and asked afterwards.
+      if (item.effect.spread === "offspring" && locus) {
+        spreadTo = locus;
+      }
+      break;
+    }
+    case "archiveSlots":
+      archiveSlots = item.effect.slots;
+      events.push({
+        kind: "discovery",
+        what: "Archive extended",
+        detail: `${item.effect.slots} more berths. The pedigree you can still examine just got longer.`,
+      });
+      break;
+    case "conditioning": {
+      const effect = item.effect;
+      const phenotype = phenotypeOf(creature, map);
+      const trait = map.polygenicTraits.find((t) => t.id === effect.stat);
+      if (!trait) return blocked(state, "This species does not have that stat.");
+      if (creature.stage === "egg") return blocked(state, "There is nothing to feed yet.");
+      const ceiling = phenotype.stats[trait.id] ?? trait.min;
+      const current = creature.achieved[trait.id] ?? trait.min;
+      // A fraction of what remains: asymptotic, exactly like every other day of
+      // raising, so no amount of feed can pass the genetic ceiling.
+      const closed = current + (ceiling - current) * effect.closeFraction;
+      next = { ...creature, achieved: { ...creature.achieved, [trait.id]: Math.min(ceiling, closed) } };
       break;
     }
     case "bond":
@@ -699,10 +799,21 @@ function doUseItem(
       return blocked(state, "That item is not used this way.");
   }
 
+  const offspring = spreadTo === undefined ? [] : state.creatures.filter((c) => c.sireId === id || c.damId === id);
+  if (spreadTo !== undefined) {
+    for (const child of offspring) events.push({ kind: "revealed", id: child.id, loci: [spreadTo] });
+  }
+  const read = new Set(offspring.map((c) => c.id));
+
   return {
     state: {
       ...state,
-      creatures: state.creatures.map((c) => (c.id === id ? next : c)),
+      creatures: state.creatures.map((c) => {
+        if (c.id === id) return next;
+        if (spreadTo === undefined || !read.has(c.id)) return c;
+        return { ...c, revealed: [...new Set([...c.revealed, spreadTo])].sort() };
+      }),
+      archiveCapacity: state.archiveCapacity + archiveSlots,
       inventory: {
         ...state.inventory,
         items: { ...state.inventory.items, [itemId]: (state.inventory.items[itemId] ?? 0) - 1 },

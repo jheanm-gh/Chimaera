@@ -12,6 +12,7 @@
 
 import { deserialiseGenome, serialiseGenome } from "@chimaera/genetics";
 import type { SerialisedGenome } from "@chimaera/genetics";
+import { NEW_CAMPAIGN } from "./campaign.js";
 import { SAVE_VERSION } from "./ranch.js";
 import type { Creature, RanchState } from "./types.js";
 
@@ -62,7 +63,12 @@ export function loadRanch(file: unknown): RanchState {
  * Add to this array; never edit an entry that has shipped.
  */
 const MIGRATIONS: readonly ((file: SaveFile) => SaveFile)[] = [
-  // v1 -> v2 goes here.
+  // v1 -> v2: the campaign arrived. A v1 ranch has done none of it, so it
+  // starts at chapter 1 with everything it has already achieved unrecorded —
+  // which is correct: the objectives are re-asked of the state on the next
+  // action, and anything that is still true will tick immediately.
+  (file) => ({ ...file, state: { ...file.state, campaign: NEW_CAMPAIGN } }),
+  // v2 -> v3 goes here.
 ];
 
 function migrate(file: SaveFile): SaveFile {

@@ -13,10 +13,12 @@ import { genotypeAt, sexOf } from "./genome.js";
 import type {
   AlleleDef,
   AlleleId,
+  EpistasisCondition,
   EpistasisRule,
   Genome,
   Hsl,
   LocusDef,
+  LocusId,
   Phenotype,
   StatId,
   TraitId,
@@ -226,15 +228,28 @@ function computeColour(
 }
 
 function gateIsOpen(genome: Genome, map: GeneMap, rule: EpistasisRule): boolean {
-  const locus: LocusDef = map.locus(rule.gate);
+  if (!conditionHolds(genome, map, rule.gate, rule.when)) return false;
+  for (const extra of rule.also ?? []) {
+    if (!conditionHolds(genome, map, extra.locus, extra.when)) return false;
+  }
+  return true;
+}
+
+function conditionHolds(
+  genome: Genome,
+  map: GeneMap,
+  locusId: LocusId,
+  when: EpistasisCondition,
+): boolean {
+  const locus: LocusDef = map.locus(locusId);
   const genotype: AlleleId[] = genotypeAt(genome, locus);
-  switch (rule.when.kind) {
+  switch (when.kind) {
     case "homozygous":
-      return genotype.length > 0 && genotype.every((a) => a === rule.when.allele);
+      return genotype.length > 0 && genotype.every((a) => a === when.allele);
     case "carries":
-      return genotype.includes(rule.when.allele);
+      return genotype.includes(when.allele);
     case "lacks":
-      return !genotype.includes(rule.when.allele);
+      return !genotype.includes(when.allele);
   }
 }
 

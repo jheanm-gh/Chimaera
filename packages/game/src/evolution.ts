@@ -18,16 +18,15 @@
 
 import type { GeneMap, Phenotype } from "@chimaera/genetics";
 import { genotypeAt } from "@chimaera/genetics";
-import { QUILLFEN_BRANCHES } from "./content.js";
+import { BRANCHES_BY_SPECIES } from "./branches.js";
 import type { EvolutionBranch, EvolutionContext } from "./content.js";
 import { achievement } from "./lifecycle.js";
 import type { Creature } from "./types.js";
 
 export function branchesForSpecies(speciesId: string): readonly EvolutionBranch[] {
-  // Phase 5 adds the other five species. One lookup point, so adding them is
-  // a data change rather than a code change.
-  if (speciesId === "quillfen") return QUILLFEN_BRANCHES;
-  return QUILLFEN_BRANCHES;
+  const found = BRANCHES_BY_SPECIES[speciesId];
+  if (!found) throw new Error(`no evolution branches authored for species "${speciesId}"`);
+  return found;
 }
 
 export function evolutionContext(
@@ -36,7 +35,7 @@ export function evolutionContext(
   map: GeneMap,
 ): EvolutionContext {
   return {
-    build: phenotype.values.build ?? 0.5,
+    build: buildValue(phenotype, map),
     affinities: (phenotype.traits.affinity ?? "").split("+").filter(Boolean),
     bond: creature.bond,
     diet: creature.diet,
@@ -49,6 +48,21 @@ export function evolutionContext(
     carries: (allele) => map.loci.some((locus) => genotypeAt(creature.genome, locus).includes(allele)),
     traits: phenotype.traits,
   };
+}
+
+/**
+ * The species' continuous "build" trait, 0-1.
+ *
+ * Every species has one — spine density, membrane span, coil count, limb length
+ * — but they are named differently, and a branch condition wants to say "heavy"
+ * without knowing which. The palette's lightness locus is that trait by
+ * construction for all six, so it is the one honest place to read it from.
+ */
+function buildValue(phenotype: Phenotype, map: GeneMap): number {
+  const locus = map.locus(map.species.palette.lightnessLocus);
+  const trait = locus.trait;
+  const value = trait === undefined ? undefined : phenotype.values[trait];
+  return value ?? 0.5;
 }
 
 /** The branch this creature takes now. The first fully satisfied branch wins. */

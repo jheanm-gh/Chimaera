@@ -16,7 +16,7 @@ decision, it does not ship.
 | 2 | Renderer: genotype to creature image | done |
 | 3 | Core loop: breed, hatch, raise, age, die | done |
 | 4 | Combat and expeditions | done |
-| 5 | Content: six species, evolution, campaign | not started |
+| 5 | Content: six species, evolution, campaign | done |
 | 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | not started |
 | 7 | Polish: audio, compendium, genome codes, a11y | not started |
 
@@ -44,7 +44,7 @@ npm run typecheck
 npm run lint
 npm run check     # all three
 npm run sim       # breed three populations over 20 generations and report
-npm run gallery   # write out/gallery.html: a plate of 50 generated creatures
+npm run gallery   # write out/gallery.html: a plate per species, drawn from genomes
 npm run dev       # the game, at http://localhost:5173
 npm run build:app # production build of the app
 ```
@@ -123,5 +123,36 @@ fifty to a thousand fights in a Web Worker and reports win rate and per-creature
 survival, which is how you find out which of your three keeps dying.
 Expeditions are the risk: a procedurally generated region, damage that carries
 between nodes, and permadeath.
+
+## The roster, and the campaign
+
+Six species, each built to pose one genetic problem the others do not: the
+Quillfen's lethal three centimorgans from its best speed allele; the
+Sallowfinch's whole hand on the X, where hens carry invisibly; the Bramblehog's
+blended spines hidden behind a keratin switch; the Kite-Ossel's flightless
+morph, which loses the trait and the evidence in the same animal; the
+Silt-Adder's two lethals in repulsion, so a healthy-looking wild adder is very
+often a double carrier; and the Ashen Lorric's two-stage pigment cascade, which
+teaches you the first lesson was a special case.
+
+They share one rig. What separates them is a body plan — posture, proportion
+and which trait drives which slot — and the pairwise silhouette test decides
+whether that worked: six icons at 32x32, every pair at least 10% of pixels
+apart, currently 13.3% at the closest. That test failed twice while the roster
+was being built, and both times the numbers in the body plans changed.
+
+Each species carries three to five evolution branches, exactly one of which is
+secret: it needs a rare genotype *and* a specific raising path, and a test
+proves it cannot be reached by raising alone.
+
+The campaign is eight chapters, one genetic concept each, framed as a
+restoration rather than a competition — the fen was farmed to a bottleneck by
+somebody else and your commission is to put working populations back into it.
+Chapters are **built from the gene map** rather than hard-coded, so chapter 4 on
+an Ashen Lorric genuinely poses the two-stage cascade that chapter 4 on a
+Quillfen does not. Objectives are predicates over the save, re-asked after every
+action and sticky once met, which means they can be tested without simulating a
+player — and they are: a scripted ranch with no selection cleverness at all
+completes chapters 1 and 2 through the real reducer.
 
 See `DECISIONS.md` for why each of those works the way it does.

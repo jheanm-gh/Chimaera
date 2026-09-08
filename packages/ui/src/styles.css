@@ -138,7 +138,7 @@ select {
 
 .layout { flex: 1; min-height: 0; padding: 16px 20px 24px; overflow: hidden; }
 .layout-ranch { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; }
-.layout-pairing, .layout-pedigree, .layout-archive, .layout-journal { overflow-y: auto; }
+.layout-pairing, .layout-pedigree, .layout-archive, .layout-journal, .layout-commission { overflow-y: auto; }
 .herd { min-height: 0; display: flex; }
 .detail { overflow-y: auto; }
 
@@ -418,3 +418,77 @@ select {
 .expedition-log { list-style: none; margin: 16px 0 0; padding: 0; font-size: 0.86em; color: var(--pale-dim); display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
 .journal-lost, .journal-expeditionEnded { color: #e0a08c; }
 .journal-battle { color: #cfe0c4; }
+
+/* --- the commission (§4.1) ---------------------------------------------- */
+
+.commission { max-width: 78ch; margin: 0 auto; }
+
+/* A rail rather than a list: eight steps, and the ones ahead are unnamed
+   because a campaign that shows its whole plan on day one is a checklist. */
+.chapter-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 16px 0 24px;
+  padding: 0;
+}
+.rail-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--pale-dim);
+  font-size: 0.82em;
+}
+.rail-step.done { border-color: rgba(111, 145, 96, 0.55); color: var(--pale); }
+.rail-step.done .rail-number { color: var(--good); }
+.rail-step.active { border-color: var(--stamp); color: #f0f2e8; background: rgba(168, 55, 31, 0.1); }
+.rail-step.active .rail-number { color: var(--stamp); }
+.rail-number { font-size: 0.9em; letter-spacing: 0.08em; }
+.rail-label { white-space: nowrap; }
+
+.chapter header { margin-bottom: 12px; }
+.chapter .eyebrow {
+  font-size: 0.68em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pale-dim);
+  margin: 0 0 6px;
+}
+.chapter h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5em;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: #f0f2e8;
+  margin: 0;
+  display: block;
+}
+.chapter .premise { color: var(--pale); margin: 0 0 12px; }
+.chapter .briefing {
+  border-left: 2px solid var(--stamp);
+  padding-left: 14px;
+  color: #cfd3c7;
+  margin: 0 0 20px;
+}
+
+.objectives { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.objectives li { display: flex; gap: 10px; align-items: baseline; }
+.objectives .tick { color: var(--pale-dim); font-size: 0.9em; width: 1em; flex: none; }
+.objectives li.done .tick { color: var(--good); }
+.objectives li.done strong { color: var(--pale-dim); text-decoration: line-through; text-decoration-thickness: 1px; }
+.objectives strong { font-weight: 500; color: #f0f2e8; }
+.lesson { display: block; font-size: 0.88em; color: var(--pale-dim); margin-top: 3px; }
+
+.reward { color: var(--pale-dim); border-top: 1px solid var(--rule); padding-top: 12px; margin: 0; }
+
+.delivered { border-top: 1px solid var(--rule); margin-top: 26px; padding-top: 4px; }
+.delivered ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.delivered li { border-left: 1px solid var(--rule); padding-left: 14px; }
+.delivered strong { display: block; font-weight: 500; color: var(--pale); }
+.delivered li .mono { color: var(--pale-dim); }
+.delivered p { margin: 4px 0 0; font-size: 0.9em; color: var(--pale-dim); max-width: 62ch; }

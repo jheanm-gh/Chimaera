@@ -29,6 +29,7 @@ import {
   resolvePalette,
 } from "../src/palette.js";
 import { renderCreature } from "../src/render.js";
+import { CANVAS } from "../src/rig/plan.js";
 import {
   componentCount,
   coverage,
@@ -181,7 +182,7 @@ describe("every genotype the map can produce actually draws", () => {
     const svg = svgFor(genomeFromSpec(map, "female", {}));
     expect(svg).toContain('role="img"');
     expect(svg).toMatch(/aria-label="[^"]+"/);
-    expect(svg).toContain('viewBox="0 0 240 150"');
+    expect(svg).toContain(`viewBox="0 0 ${CANVAS.width} ${CANVAS.height}"`);
     // Every opening tag is closed: crude, but it catches a truncated serialiser.
     const opens = (svg.match(/<(?!\/)[a-zA-Z]/g) ?? []).length;
     const closes = (svg.match(/<\/[a-zA-Z]/g) ?? []).length + (svg.match(/\/>/g) ?? []).length;
@@ -341,8 +342,18 @@ describe("caption", () => {
       CREST: ["Cr_grand", null],
     });
     const notes = renderCreature(pheno(prized), map).caption.notes;
-    expect(notes).toContain("prism edge");
-    expect(notes).toContain("lantern sheen");
-    expect(notes).toContain("crest in display");
+    // The rig names the *appearance*, not the locus: a caption that read
+    // "PRISM" would be a genotype leak dressed up as a label (§1.3).
+    expect(notes).toContain("iridescent");
+    expect(notes).toContain("luminous");
+    expect(notes.some((note) => note.endsWith("display"))).toBe(true);
+
+    // And a plain animal gets none of them.
+    const plain = genomeFromSpec(map, "male", {
+      PRISM: ["Pr_wild", "Pr_wild"],
+      LANTERN: ["LN_wild", "LN_wild"],
+      CREST: ["Cr_plain", null],
+    });
+    expect(renderCreature(pheno(plain), map).caption.notes).toEqual([]);
   });
 });

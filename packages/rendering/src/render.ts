@@ -8,15 +8,21 @@
  * byte-identically.
  *
  * The function is pure and deterministic. Where organic variation is wanted
- * (spot placement), the RNG is seeded from the phenotype itself, so a given
+ * (marking placement), the RNG is seeded from the phenotype itself, so a given
  * creature always has the same freckles.
+ *
+ * Which shape gets drawn comes from the species' `BodyPlan`; which *trait*
+ * drives each slot comes from the plan's `traits` map, because a Quillfen's
+ * back carries a dorsal ridge and a Sallowfinch's carries a crest, and the rig
+ * should not have to know which is which.
  */
 
 import type { GeneMap, Phenotype } from "@chimaera/genetics";
 import { createRng } from "@chimaera/genetics";
 import { clamp01 } from "./geometry.js";
 import { resolvePalette } from "./palette.js";
-import * as rig from "./rig/quillfen.js";
+import * as rig from "./rig/plan.js";
+import { planFor } from "./rig/plans.js";
 import type { CaptionData, Drawing, Layer, Mark, RenderOptions, Ring } from "./types.js";
 
 /** Stable seed from the visible phenotype. Same creature, same freckles, forever. */
@@ -47,20 +53,25 @@ export function renderCreature(
   map: GeneMap,
   options: RenderOptions = {},
 ): Drawing {
-  const input: rig.RigInput = {
+  const plan = planFor(phenotype.species);
+  const trait = (key: string | undefined, fallback = "none"): string =>
+    key === undefined ? fallback : (phenotype.traits[key] ?? fallback);
+
+  const input: rig.PlanInput = {
+    plan,
     detail: options.detail ?? "full",
-    build: phenotype.values.build ?? 0.5,
+    build: phenotype.values[plan.traits.build] ?? 0.5,
     size: normaliseStat(phenotype, map, "vigour"),
-    dorsal: phenotype.traits.dorsal ?? "smooth",
-    limbs: phenotype.traits.limbs ?? "stub",
-    tail: phenotype.traits.tail ?? "none",
-    // An albino's markings read as "unpigmented": the layer is present in the
-    // genome and simply has nothing to show, which is what epistasis means.
-    markings: phenotype.traits.markings === "unpigmented" ? "none" : (phenotype.traits.markings ?? "none"),
-    crest: phenotype.traits.crest ?? "hidden",
-    tusk: phenotype.traits.tusk ?? "none",
-    sheen: phenotype.traits.sheen ?? "plain",
-    lantern: phenotype.traits.lantern ?? "none",
+    limbs: trait(plan.traits.limbs, "paddle"),
+    tail: trait(plan.traits.tail, "fan"),
+    // A masked or absent slot still resolves to a trait string; the rig reads
+    // words like "naked" and "absent" and draws the reduced form, which is what
+    // an epistatic gate should look like from the outside.
+    crown: trait(plan.traits.crown, "even"),
+    markings: trait(plan.traits.markings, "none"),
+    display: trait(plan.traits.display, "none"),
+    glow: /lantern|glow/.test(trait(plan.traits.glow)),
+    sheen: /prism|iridescent|nacre|opal|aurora/.test(trait(plan.traits.sheen)),
     rng: createRng(phenotypeFingerprint(phenotype)),
   };
 
@@ -82,28 +93,28 @@ export function renderCreature(
 
   const layers: Layer[] = [];
 
-  const glow = rig.lanternGlow(input, anchors);
+  const glow = rig.glowShape(input, anchors);
   if (glow) {
     layers.push({
       id: "glow",
-      marks: [
-        {
-          shape: { kind: "path", points: glow, closed: true, smooth: true },
-          fill: "glow",
-          opacity: 0.3,
-          ghost: true,
-        },
-      ],
+      marks: [{ shape: { kind: "path", points: glow, closed: true, smooth: true }, fill: "glow", opacity: 0.3, ghost: true }],
     });
   }
 
-  layers.push({ id: "tail", marks: [ink(rig.tailShape(input, anchors), "coatShade")] });
-  layers.push({ id: "dorsal", marks: [ink(rig.dorsalRidge(input, anchors), "coatShade")] });
+  const tail = rig.tailShape(input, anchors);
+  if (tail) layers.push({ id: "tail", marks: [ink(tail, "coatShade")] });
+
+  // The crown sits behind the trunk — a membrane, a ridge or a plume all read
+  // better with the body's mass in front of them.
+  const crown = rig.crownShape(input, anchors);
+  if (crown.length > 0) {
+    layers.push({ id: "crown", marks: crown.map((ring) => ink(ring, "coatShade")) });
+  }
 
   const limbs = rig.limbShapes(input, anchors);
-  const hind = limbs.rings[0];
-  const fore = limbs.rings[1];
-  if (hind) layers.push({ id: "limb-hind", marks: [ink(hind, "coatShade")] });
+  if (limbs.rings.length > 1) {
+    layers.push({ id: "limb-hind", marks: [ink(limbs.rings[0] as Ring, "coatShade")] });
+  }
 
   layers.push({ id: "body", marks: [ink(body, "coat")] });
   layers.push({
@@ -121,35 +132,23 @@ export function renderCreature(
   const markings = rig.markingMarks(input, anchors);
   if (markings.length > 0) layers.push({ id: "markings", marks: markings });
 
+  const fore = limbs.rings[limbs.rings.length - 1];
   if (fore) layers.push({ id: "limb-fore", marks: [ink(fore, "coat")] });
   if (limbs.claws.length > 0) {
-    layers.push({
-      id: "claws",
-      marks: limbs.claws.map((claw) => ink(claw, "coatLight", { strokeWidth: 1.1 })),
-    });
+    layers.push({ id: "claws", marks: limbs.claws.map((claw) => ink(claw, "coatLight", { strokeWidth: 1.1 })) });
   }
 
-  layers.push({
-    id: "gills",
-    marks: rig.gillFronds(input, anchors).map((frond) => ink(frond, "coatLight", { strokeWidth: 1.3 })),
-  });
   layers.push({ id: "head", marks: [ink(rig.headShape(input, anchors), "coat")] });
-
-  const crest = rig.crestShape(input, anchors);
-  if (crest) layers.push({ id: "crest", marks: [ink(crest, "coatLight")] });
-
-  const tusk = rig.tuskShape(input, anchors);
-  if (tusk) layers.push({ id: "tusk", marks: [ink(tusk, "coatLight", { strokeWidth: 1.1 })] });
 
   layers.push({
     id: "eye",
     marks: [
-      { shape: { kind: "circle", c: anchors.eye, r: 4.6 }, fill: "paper", stroke: "outline", strokeWidth: 1.3 },
-      { shape: { kind: "circle", c: anchors.eye, r: 2.1 }, fill: "eye" },
+      { shape: { kind: "circle", c: anchors.eye, r: 4.4 }, fill: "paper", stroke: "outline", strokeWidth: 1.3 },
+      { shape: { kind: "circle", c: anchors.eye, r: 2 }, fill: "eye" },
     ],
   });
 
-  if (input.sheen === "prismatic") {
+  if (input.sheen) {
     // A prism edge is a rim, not a wash: it traces the outline so the sheen
     // reads at thumbnail size, which is where players will actually spot it.
     layers.push({
@@ -177,22 +176,24 @@ export function renderCreature(
   };
 }
 
-function buildCaption(phenotype: Phenotype, map: GeneMap, input: rig.RigInput): CaptionData {
+function buildCaption(phenotype: Phenotype, map: GeneMap, input: rig.PlanInput): CaptionData {
   const notes: string[] = [];
-  if (phenotype.epistasisActive.length > 0) {
-    for (const id of phenotype.epistasisActive) {
-      const rule = map.species.epistasis.find((r) => r.id === id);
-      if (rule) notes.push(rule.name);
-    }
+  for (const id of phenotype.epistasisActive) {
+    const rule = map.species.epistasis.find((r) => r.id === id);
+    if (rule) notes.push(rule.name);
   }
-  if (input.sheen === "prismatic") notes.push("prism edge");
-  if (input.lantern === "lantern") notes.push("lantern sheen");
-  if (input.crest === "grand") notes.push("crest in display");
+  if (input.sheen) notes.push("iridescent");
+  if (input.glow) notes.push("luminous");
+  if (!["none", "hidden", "plain", "dry"].includes(input.display)) notes.push(`${input.display} display`);
+
+  const parts = [input.crown, input.limbs, input.tail, input.markings].filter(
+    (part, index, all) => part !== "none" && all.indexOf(part) === index,
+  );
 
   return {
     species: map.species.name,
     sex: phenotype.sex,
-    form: [input.dorsal, input.limbs, input.tail, input.markings].join(" / "),
+    form: parts.join(" / "),
     lengthUnits: Math.round(30 + normaliseStat(phenotype, map, "vigour") * 22),
     notes,
   };

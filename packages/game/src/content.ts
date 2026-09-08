@@ -96,7 +96,9 @@ export const HABITATS: readonly HabitatDef[] = [
     id: "deepfen",
     name: "Deep fen",
     blurb: "Dark, still, cold. Nothing hurries here, and attention sharpens.",
-    biome: "Mirefen",
+    // Its own biome, not an annex of the mirefen. A Quillfen does well here and
+    // a Silt-Adder belongs here, and the habitat match is where that shows.
+    biome: "Deepfen",
     affinity: "mire",
     growth: { speed: 0.85, vigour: 1, focus: 1.35 },
   },
@@ -120,9 +122,25 @@ export const HABITATS: readonly HabitatDef[] = [
     id: "galeshore",
     name: "Galeshore",
     blurb: "Wind and spray. Hard living, and it shows in the shoulders.",
-    biome: "Coast",
+    biome: "Galeshore",
     affinity: "gale",
     growth: { speed: 1.4, vigour: 1.05, focus: 0.75 },
+  },
+  {
+    id: "reedwold",
+    name: "Reedwold",
+    blurb: "Dry grass to the horizon, seed heads, and nothing to hide behind.",
+    biome: "Reedwold",
+    affinity: "gale",
+    growth: { speed: 1.2, vigour: 0.95, focus: 1.15 },
+  },
+  {
+    id: "thornbrake",
+    name: "Thornbrake",
+    blurb: "Chalk, scrub and bramble tunnels. Everything here is defended.",
+    biome: "Thornbrake",
+    affinity: "ember",
+    growth: { speed: 0.9, vigour: 1.35, focus: 0.95 },
   },
 ];
 
@@ -235,70 +253,6 @@ export interface EvolutionBranch {
   readonly secret?: boolean;
 }
 
-/**
- * Evaluated in order; the first branch whose conditions all hold is taken, so
- * the most demanding branches sit at the top. `reedwarden` is the floor: a
- * creature that meets nothing still becomes something.
- */
-export const QUILLFEN_BRANCHES: readonly EvolutionBranch[] = [
-  {
-    id: "lantern-sage",
-    name: "Lantern Sage",
-    blurb:
-      "It stops moving almost entirely, and begins to glow on a slow cycle that matches nothing in the fen. Fen-keepers navigate by them.",
-    secret: true,
-    hint: "Something in the deep water responds to this one, and it is not the food.",
-    conditions: [
-      { label: "carries the lantern allele", test: (c) => c.carries("LN_star") },
-      { label: "focus near its ceiling", test: (c) => (c.achievement.focus ?? 0) >= 0.8 },
-      { label: "deeply bonded", test: (c) => c.bond >= 80 },
-      { label: "raised in the deep fen", test: (c) => c.habitat === "deepfen" },
-      { label: "holding a prism lens", test: (c) => c.heldItem === "prism-lens" },
-    ],
-  },
-  {
-    id: "ember-kindler",
-    name: "Ember Kindler",
-    blurb:
-      "Warm-water stock. The gills shorten, the hide thickens, and it will sit in water that would kill its siblings.",
-    hint: "It keeps returning to the warm end of the pool.",
-    conditions: [
-      { label: "ember affinity", test: (c) => c.affinities.includes("ember") },
-      { label: "well bonded", test: (c) => c.bond >= 60 },
-      { label: "raised in the emberpool", test: (c) => c.habitat === "emberpool" },
-    ],
-  },
-  {
-    id: "gale-skimmer",
-    name: "Gale Skimmer",
-    blurb: "Long, light and impatient. It has stopped sculling and started running.",
-    hint: "It is faster than a Quillfen has any business being.",
-    conditions: [
-      { label: "gale affinity", test: (c) => c.affinities.includes("gale") },
-      { label: "speed near its ceiling", test: (c) => (c.achievement.speed ?? 0) >= 0.7 },
-      { label: "trained for sprint work", test: (c) => c.training === "sprint" },
-    ],
-  },
-  {
-    id: "silt-treader",
-    name: "Silt Treader",
-    blurb: "Heavy, patient, and almost impossible to move. It walks the bottom rather than swimming.",
-    hint: "It has put on weight and shows no sign of stopping.",
-    conditions: [
-      { label: "heavy build", test: (c) => c.build >= 0.6 },
-      { label: "vigour well developed", test: (c) => (c.achievement.vigour ?? 0) >= 0.65 },
-      { label: "fed on silt", test: (c) => c.diet === "silt" },
-    ],
-  },
-  {
-    id: "reedwarden",
-    name: "Reedwarden",
-    blurb: "The common adult form. Watchful, territorial, and entirely unbothered.",
-    hint: "Growing up much as its parents did.",
-    conditions: [],
-  },
-];
-
 // ---------------------------------------------------------------------------
 // Items (§5)
 // ---------------------------------------------------------------------------
@@ -320,13 +274,41 @@ export type ItemEffect =
       readonly incubationMultiplier?: number;
     }
   /** Reveals genotype information (§1.3). */
-  | { readonly kind: "reveal"; readonly tier: "one" | "coat" | "all"; readonly phase?: boolean }
+  | {
+      readonly kind: "reveal";
+      readonly tier: "one" | "coat" | "all";
+      readonly phase?: boolean;
+      /**
+       * Who the reading covers. A test cross is not a better lens — it is the
+       * same reading applied to a whole clutch at once, which is why it is
+       * worth breeding *before* you use it.
+       */
+      readonly spread?: "self" | "offspring";
+    }
   /** Changes what the player can see for one observation, not the genome. */
   | { readonly kind: "suppressDominance" }
   | { readonly kind: "bond"; readonly amount: number }
   | { readonly kind: "lifespan"; readonly days: number }
   /** Extracts one locus from a creature, destroying it permanently (§5). */
   | { readonly kind: "geneSerum" }
+  /** Permanently widens the Archive, which is what limits how far back you can reason. */
+  | { readonly kind: "archiveSlots"; readonly slots: number }
+  /**
+   * Closes part of the gap between an achieved stat and its genetic ceiling.
+   *
+   * It closes a *fraction of what remains*, so it can never exceed the ceiling
+   * and gets worse the better the animal already is. Feed is how you finish a
+   * well-bred creature, never how you rescue a badly bred one.
+   */
+  | { readonly kind: "conditioning"; readonly stat: StatId; readonly closeFraction: number }
+  /**
+   * Held habitat decor. Floors a mismatched habitat back to neutral and — this
+   * is the important half — never lifts a matched one above it. A creature with
+   * the right affinity allele still beats a creature with the right furniture.
+   */
+  | { readonly kind: "decor"; readonly note: string }
+  /** Held training gear: makes the drill cheaper in days, never better in ceiling. */
+  | { readonly kind: "trainingGear"; readonly lifespanCostMultiplier: number; readonly note: string }
   | { readonly kind: "held"; readonly note: string };
 
 export interface ItemDef {
@@ -497,6 +479,83 @@ export const ITEMS: readonly ItemDef[] = [
     consumable: false,
     effect: { kind: "held", note: "Held item. Gates at least one evolution branch." },
   },
+
+  // --- Analysis, continued: reading a clutch rather than an animal ---------
+  {
+    id: "test-cross-kit",
+    name: "Test-cross kit",
+    category: "analysis",
+    blurb:
+      "Reads one locus on a creature and on every one of its living offspring at once. Cheaper than a lens each, " +
+      "and useless until you have bred it.",
+    cost: 260,
+    consumable: true,
+    effect: { kind: "reveal", tier: "one", spread: "offspring" },
+  },
+  {
+    id: "pedigree-extension",
+    name: "Pedigree extension",
+    category: "analysis",
+    blurb:
+      "Eight more Archive berths. What limits a line-breeding project is not the ranch — it is how many ancestors " +
+      "you can still put your hands on.",
+    cost: 420,
+    consumable: true,
+    effect: { kind: "archiveSlots", slots: 8 },
+  },
+
+  // --- Raising: feed, decor and gear (§5) ----------------------------------
+  {
+    id: "feed-marrow",
+    name: "Marrow mash",
+    category: "raising",
+    blurb: "Finishes a creature's condition. Closes a third of the gap to its vigour ceiling, and not one point past it.",
+    cost: 110,
+    consumable: true,
+    effect: { kind: "conditioning", stat: "vigour", closeFraction: 0.33 },
+  },
+  {
+    id: "feed-quickmeal",
+    name: "Quickmeal",
+    category: "raising",
+    blurb: "The same idea, aimed at stride. The ceiling is still the ceiling.",
+    cost: 110,
+    consumable: true,
+    effect: { kind: "conditioning", stat: "speed", closeFraction: 0.33 },
+  },
+  {
+    id: "feed-stillwater",
+    name: "Stillwater steep",
+    category: "raising",
+    blurb: "Bitter, and it settles them. Attention only.",
+    cost: 110,
+    consumable: true,
+    effect: { kind: "conditioning", stat: "focus", closeFraction: 0.33 },
+  },
+  {
+    id: "decor-transplant",
+    name: "Transplanted home turf",
+    category: "raising",
+    blurb:
+      "A cart of the right mud, the right reeds and the right stones. A creature in the wrong habitat stops " +
+      "suffering for it — but it will never thrive the way one born to the place does.",
+    cost: 380,
+    consumable: false,
+    effect: { kind: "decor", note: "Held. Removes the mismatch penalty. Never grants the match bonus." },
+  },
+  {
+    id: "training-rig",
+    name: "Fitted training rig",
+    category: "raising",
+    blurb: "Takes most of the wear out of a drill. The drill still cannot raise a ceiling.",
+    cost: 340,
+    consumable: false,
+    effect: {
+      kind: "trainingGear",
+      lifespanCostMultiplier: 0.55,
+      note: "Held. Training costs fewer days of life.",
+    },
+  },
 ];
 
 const ITEMS_BY_ID = new Map(ITEMS.map((item) => [item.id, item]));
@@ -509,6 +568,13 @@ export function itemById(id: string): ItemDef {
 
 export function hasItem(id: string): boolean {
   return ITEMS_BY_ID.has(id);
+}
+
+/** Held items the lifecycle needs to know about, looked up by id. */
+export function heldEffect(id: string | undefined): ItemEffect | undefined {
+  if (id === undefined) return undefined;
+  const item = ITEMS_BY_ID.get(id);
+  return item?.consumable === false ? item.effect : undefined;
 }
 
 export const DIETS_BY_ID = new Map(DIETS.map((d) => [d.id, d]));

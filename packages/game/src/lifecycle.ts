@@ -14,7 +14,7 @@
 
 import type { GeneMap, Phenotype, StatId } from "@chimaera/genetics";
 import { effectiveStat } from "@chimaera/genetics";
-import { DIETS_BY_ID, HABITATS_BY_ID, TRAINING_BY_ID, habitatFactor } from "./content.js";
+import { DIETS_BY_ID, HABITATS_BY_ID, TRAINING_BY_ID, habitatFactor, heldEffect } from "./content.js";
 import type { Creature, LifeStage } from "./types.js";
 
 /** Day at which each stage begins. Elder runs to the end of the lifespan. */
@@ -92,8 +92,15 @@ export function tickCreature(creature: Creature, phenotype: Phenotype, map: Gene
   const training = TRAINING_BY_ID.get(creature.training);
   if (!diet || !habitat || !training) throw new Error(`creature ${creature.id} has an unknown raising axis`);
 
+  const held = heldEffect(creature.heldItem);
   const affinities = (phenotype.traits.affinity ?? "").split("+").filter(Boolean);
-  const match = habitatFactor(habitat, map.species.biome, affinities);
+  // Decor floors a mismatch back to neutral and stops there. Furniture is
+  // damage control; the affinity allele is the only thing that grants a bonus,
+  // which is what keeps this raising axis from outranking a breeding decision.
+  const match =
+    held?.kind === "decor"
+      ? Math.max(habitatFactor(habitat, map.species.biome, affinities), 1)
+      : habitatFactor(habitat, map.species.biome, affinities);
   const stage = creature.stage;
   const stageRate = STAGE_GROWTH[stage];
 
@@ -120,7 +127,9 @@ export function tickCreature(creature: Creature, phenotype: Phenotype, map: Gene
 
   // Lifespan is spent, not merely counted: hard training and rich diets cost
   // days, fasting buys them back.
-  const lifespanSpend = (trainingActive ? training.lifespanCostPerDay : 0) + (1 - diet.lifespan);
+  const gear = held?.kind === "trainingGear" ? held.lifespanCostMultiplier : 1;
+  const lifespanSpend =
+    (trainingActive ? training.lifespanCostPerDay * gear : 0) + (1 - diet.lifespan);
   const lifespanDays = Math.max(creature.ageDays + 1, creature.lifespanDays - lifespanSpend);
 
   const ageDays = creature.ageDays + 1;
