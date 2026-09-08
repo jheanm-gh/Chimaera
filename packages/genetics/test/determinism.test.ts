@@ -84,6 +84,23 @@ describe("seeded RNG", () => {
     expect(later.fork("breeding").next()).not.toBe(original.fork("breeding").next());
   });
 
+  it("does NOT consume from the parent stream when forking", () => {
+    // This is the contract, not an accident. Forking has to leave the parent
+    // untouched, or adding a new subsystem's roll would shift every roll that
+    // follows it and invalidate every saved seed.
+    //
+    // The cost is a real footgun: forking the same state twice with the same
+    // label gives the same numbers. A caller that wants a fresh substream per
+    // call must vary the label itself. (@chimaera/game learned this by
+    // shipping a ranch in which every egg was genetically identical.)
+    const rng = createRng("no-consume");
+    const before = rng.state();
+    rng.fork("a");
+    rng.fork("b");
+    expect(rng.state()).toEqual(before);
+    expect(createRng("no-consume").fork("x").next()).toBe(createRng("no-consume").fork("x").next());
+  });
+
   it("restores exactly from a saved state", () => {
     const rng = createRng("save-restore");
     for (let i = 0; i < 37; i++) rng.next();

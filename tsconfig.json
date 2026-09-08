@@ -4,6 +4,8 @@
     { "path": "./packages/genetics" },
     { "path": "./packages/genetics/tsconfig.spec.json" },
     { "path": "./packages/rendering" },
-    { "path": "./packages/rendering/tsconfig.spec.json" }
+    { "path": "./packages/rendering/tsconfig.spec.json" },
+    { "path": "./packages/game" },
+    { "path": "./packages/game/tsconfig.spec.json" }
   ]
 }

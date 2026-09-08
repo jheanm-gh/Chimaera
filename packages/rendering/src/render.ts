@@ -48,6 +48,7 @@ export function renderCreature(
   options: RenderOptions = {},
 ): Drawing {
   const input: rig.RigInput = {
+    detail: options.detail ?? "full",
     build: phenotype.values.build ?? 0.5,
     size: normaliseStat(phenotype, map, "vigour"),
     dorsal: phenotype.traits.dorsal ?? "smooth",

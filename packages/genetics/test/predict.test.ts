@@ -146,7 +146,19 @@ describe("partial information becomes visible uncertainty", () => {
     expect(smooth?.max).toBeCloseTo(0.25, 12);
     expect(smooth?.p).toBeGreaterThan(0);
     expect(smooth?.p).toBeLessThan(0.25);
-    expect(prediction.caveats.some((c) => /genotype unknown/.test(c))).toBe(true);
+    expect(prediction.caveats.some((c) => /genotype not established/.test(c))).toBe(true);
+  });
+
+  it("does not cry 'unknown' at a locus it has actually deduced", () => {
+    // A living creature showing the lantern sheen can only be a heterozygote:
+    // the homozygote never hatches. That is a deduction, not a guess, and
+    // labelling it uncertain would teach the player to distrust exact answers.
+    const lit = observedOnly(genomeFromSpec(map, "male", { LANTERN: ["LN_star", "LN_wild"] }));
+    const unlit = observedOnly(genomeFromSpec(map, "female", { LANTERN: ["LN_wild", "LN_wild"] }));
+    const prediction = predictOffspring(lit, unlit, map, ["LANTERN"]);
+
+    expect(locus(prediction, "LANTERN").certain).toBe(true);
+    expect(prediction.caveats.some((c) => /not established/.test(c))).toBe(false);
   });
 
   it("collapses that range once a lens reveals the genotype", () => {

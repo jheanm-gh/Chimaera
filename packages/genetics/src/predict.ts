@@ -779,10 +779,18 @@ function collectCaveats(
     ["sire", sire],
     ["dam", dam],
   ] as const) {
-    const unknown = targets.filter((locus) => !parent.known[locus.id]).map((locus) => locus.name);
-    if (unknown.length > 0) {
+    // Only warn where the genotype is genuinely still open. A locus with one
+    // consistent genotype has been *deduced*, not guessed — a living creature
+    // showing a recessive-lethal trait can only be a heterozygote — and calling
+    // that "unknown" would teach the player to distrust an exact answer.
+    const open = targets.filter((locus) => {
+      if (parent.known[locus.id]) return false;
+      const heteromorphic = locus.chromosome === map.sexChromosome.def.id && parent.sex === "male";
+      return candidateGenotypes(locus, parent, map, heteromorphic).length > 1;
+    });
+    if (open.length > 0) {
       caveats.push(
-        `${label} genotype unknown at ${unknown.join(", ")} — ranges below span every genotype consistent with its appearance.`,
+        `${label} genotype not established at ${open.map((l) => l.name).join(", ")} — ranges below span every genotype consistent with its appearance.`,
       );
     }
   }

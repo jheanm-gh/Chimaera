@@ -289,6 +289,94 @@ and that every `url(#...)` reference resolves within its own document.
 
 ---
 
+## Phase 3 — Core loop
+
+### D32. State is a value; actions are pure functions
+
+`applyAction(state, action, map) -> { state, events }`. No classes, no
+references into the engine, no clock. The state *is* the save file, so a ranch
+round-trips through JSON, replays from a seed plus an action list, and could be
+handed to a Web Worker without ceremony. React's only job is to hold the current
+value and forward actions.
+
+### D33. `rngCursor`, because `fork()` deliberately does not consume
+
+`Rng.fork(label)` leaves the parent stream untouched — that is the whole point
+of it (D13), and it is what stops a Phase 4 battle roll from shifting every
+breeding roll that follows. The cost is a genuine footgun: forking the same
+state twice with the same label returns the same numbers.
+
+This shipped as a bug. Every breeding forked `"breed"` from a stored base state
+that never advanced, so **every egg from a given ranch was genetically
+identical** — the lethal test failed, which is how it was found. The fix is a
+monotonic `rngCursor` on the ranch: rolls fork `label:cursor` and increment it.
+The genetics suite now pins fork's non-consuming contract explicitly so nobody
+"fixes" it in the other direction.
+
+### D34. A doomed egg fails at hatching, not at pairing
+
+The genetics engine decides lethality at conception. The *player* learns six
+days later, when the egg was due. A lethal allele that announces itself at the
+moment of pairing teaches nothing; one that costs a week of incubation teaches
+the lesson §4.1 chapter 5 is built around. `Creature.doomed` carries the reason
+until then.
+
+### D35. Growth is asymptotic toward the ceiling
+
+`achieved += (ceiling - achieved) * rate`, where the rate is the product of the
+four raising axes and the life stage. Raising therefore *cannot* exceed genes —
+not because a clamp says so, but because the equation has the ceiling as its
+limit. That is the design law written as arithmetic.
+
+### D36. Phenotypes are derived and cached, never stored
+
+Storing a phenotype in the save would let it drift from its genome after a
+genetics balance patch. A creature whose picture disagrees with its genome is
+the worst possible bug in this game, so the field does not exist; `phenotypeOf`
+memoises on the genome object instead.
+
+### D37. Evolution previews show counts, never conditions
+
+§2.3 asks for previewable but not guaranteed. The preview gives the branch name,
+a nudge, and "3 of 5" — never which three. A secret branch stays off the list
+entirely until the player is within one condition of it, or "there is a hidden
+fifth form" becomes a permanent checklist item and stops being a secret.
+
+### D38. The migration chain exists before there is anything to migrate
+
+`MIGRATIONS` is an empty array with a comment. Adding `v1 -> v2` later is an
+append rather than a redesign, and the loader already refuses a save from a
+newer build instead of corrupting it. Players will own creatures they refuse to
+lose.
+
+### D39. Virtualised grid, hand-rolled
+
+§10 asks for 500 creatures with no frame drops and every list virtualised.
+Measured on the built app with a 500-creature save: **132ms to first paint,
+20-32 cards mounted, 3,617 DOM nodes, worst scroll step 30ms.** Mounting all 500
+would be hundreds of thousands of nodes.
+
+Two things got it there. Generated SVG is cached across mounts, because
+virtualisation unmounts a card on scroll and `useMemo` goes with it. And cards
+render at a `"thumb"` detail level that halves ring sampling — a 210px card
+cannot show the difference, and five hundred of them can very much feel it.
+
+### D40. The scroll handler reads the event synchronously
+
+React releases a synthetic event when the handler returns, so reading
+`event.currentTarget` inside a state updater — which React may run later, during
+render — finds `null`. This crashed the whole app mid-scroll on a large ranch,
+and was invisible with four creatures. Found by measuring against the §10 target
+rather than by playing.
+
+### D41. The app reuses `toSvg` rather than mirroring it in JSX
+
+One serialiser between the ranch screen, the exported plate and the printed
+lineage certificate. A parallel JSX renderer would be a second definition of
+what a creature looks like, and the two would drift.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.

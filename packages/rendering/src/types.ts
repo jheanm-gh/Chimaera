@@ -114,8 +114,18 @@ export interface CaptionData {
  */
 export type PaletteMode = "full" | "deuteranopia" | "protanopia" | "tritanopia" | "monochrome";
 
+/**
+ * How finely to sample the parametric geometry.
+ *
+ * "full" is the plate, the creature panel and anything printed. "thumb" halves
+ * the ring resolution for the ranch grid, where a 210px card cannot show the
+ * difference and five hundred of them can very much feel it.
+ */
+export type DetailLevel = "full" | "thumb";
+
 export interface RenderOptions {
   readonly mode?: PaletteMode;
+  readonly detail?: DetailLevel;
   /** Overall scale applied to the whole drawing, before the viewBox. */
   readonly scale?: number;
   /** Draw the field-journal frame: baseline, ticks, typeset label. */

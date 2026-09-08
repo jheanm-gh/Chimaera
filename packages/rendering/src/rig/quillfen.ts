@@ -34,14 +34,21 @@ import {
   taperedRing,
   v,
 } from "../geometry.js";
-import type { Mark, Ring, Vec2 } from "../types.js";
+import type { DetailLevel, Mark, Ring, Vec2 } from "../types.js";
 
 export const CANVAS = { width: 240, height: 150 } as const;
 const BASELINE = 128;
 
+/** Step counts scale with detail; shape and proportion never do. */
+function steps(input: RigInput, full: number): number {
+  return input.detail === "thumb" ? Math.max(4, Math.round(full / 2)) : full;
+}
+
 export interface RigInput {
   /** BUILD locus value, 0 slight to 1 heavy. */
   readonly build: number;
+  /** Sampling density. Thumbnails halve it; nothing else changes. */
+  readonly detail: DetailLevel;
   /** Vigour ceiling normalised to 0-1: the size scalar. */
   readonly size: number;
   readonly dorsal: string;
@@ -100,12 +107,13 @@ export function bodyOutline(input: RigInput, anchors: Anchors): Ring {
     ryBottom: lerp(23, 38, clamp01(input.build)) * scale,
     // Mass sits toward the tail: this is a creature that sculls, not sprints.
     bias: -0.16,
+    steps: steps(input, 48),
   });
 }
 
 export function headShape(input: RigInput, anchors: Anchors): Ring {
   const scale = lerp(0.9, 1.1, clamp01(input.size));
-  const spine = arcSpine(anchors.neck, v((anchors.neck.x + anchors.snout.x) / 2, anchors.neck.y - 4), anchors.snout, 10);
+  const spine = arcSpine(anchors.neck, v((anchors.neck.x + anchors.snout.x) / 2, anchors.neck.y - 4), anchors.snout, steps(input, 10));
   const thick = lerp(19, 24, clamp01(input.build)) * scale;
   return taperedRing(spine, (t) => thick * (1 - 0.72 * t * t));
 }
@@ -123,7 +131,7 @@ export function gillFronds(input: RigInput, anchors: Anchors): Ring[] {
     const root = v(anchors.gillRoot.x - index * 7 * scale, anchors.gillRoot.y + index * 2.5 * scale);
     const tip = v(root.x - Math.cos(angle) * reach * 0.85, root.y + Math.sin(angle) * reach);
     const control = v(root.x + 5 * scale, root.y + Math.sin(angle) * reach * 0.45);
-    const spine = arcSpine(root, control, tip, 8);
+    const spine = arcSpine(root, control, tip, steps(input, 8));
     return taperedRing(spine, (t) => (2.4 + 3.6 * Math.sin(Math.PI * t)) * scale);
   });
 }
@@ -133,7 +141,7 @@ export function dorsalRidge(input: RigInput, anchors: Anchors): Ring {
     anchors.ridgeStart,
     v((anchors.ridgeStart.x + anchors.ridgeEnd.x) / 2, anchors.ridgeStart.y - 10),
     anchors.ridgeEnd,
-    20,
+    steps(input, 20),
   );
   const scale = lerp(0.9, 1.1, clamp01(input.size));
   switch (input.dorsal) {
@@ -157,7 +165,7 @@ export function tailShape(input: RigInput, anchors: Anchors): Ring {
   switch (input.tail) {
     case "whip": {
       const tip = v(base.x - 58 * scale, base.y - 20 * scale);
-      const spine = arcSpine(base, v(base.x - 30 * scale, base.y + 4), tip, 14);
+      const spine = arcSpine(base, v(base.x - 30 * scale, base.y + 4), tip, steps(input, 14));
       // The taper floor is load-bearing, not cosmetic: below ~3.5 units the tip
       // breaks off in the 32x32 silhouette and the creature reads as two
       // objects. The silhouette test catches it if this ever drifts.
@@ -165,20 +173,20 @@ export function tailShape(input: RigInput, anchors: Anchors): Ring {
     }
     case "fan+whip": {
       const tip = v(base.x - 62 * scale, base.y - 12 * scale);
-      const spine = arcSpine(base, v(base.x - 28 * scale, base.y + 8), tip, 16);
+      const spine = arcSpine(base, v(base.x - 28 * scale, base.y + 8), tip, steps(input, 16));
       // Broad at the root, whipped at the tip: both alleles visibly present.
       // Same taper floor as the whip, for the same silhouette reason.
       return taperedRing(spine, (t) => lerp(22, 4, t ** 1.7) * scale);
     }
     case "none": {
       const tip = v(base.x - 26 * scale, base.y);
-      const spine = arcSpine(base, v(base.x - 14 * scale, base.y + 2), tip, 8);
+      const spine = arcSpine(base, v(base.x - 14 * scale, base.y + 2), tip, steps(input, 8));
       return taperedRing(spine, (t) => lerp(16, 9, t) * scale);
     }
     default: {
       // fan
       const tip = v(base.x - 48 * scale, base.y - 4 * scale);
-      const spine = arcSpine(base, v(base.x - 24 * scale, base.y + 2), tip, 14);
+      const spine = arcSpine(base, v(base.x - 24 * scale, base.y + 2), tip, steps(input, 14));
       return taperedRing(spine, (t) => lerp(16, 24, Math.sin((t * Math.PI) / 2)) * scale);
     }
   }
@@ -194,12 +202,12 @@ export function limbShapes(input: RigInput, anchors: Anchors): { rings: Ring[]; 
     switch (input.limbs) {
       case "stub": {
         const foot = v(anchor.x + forward * 3 * scale, anchor.y + 16 * scale);
-        rings.push(taperedRing(arcSpine(anchor, v(anchor.x, anchor.y + 9 * scale), foot, 6), (t) => lerp(9, 7, t) * scale));
+        rings.push(taperedRing(arcSpine(anchor, v(anchor.x, anchor.y + 9 * scale), foot, steps(input, 6)), (t) => lerp(9, 7, t) * scale));
         break;
       }
       case "clawed": {
         const foot = v(anchor.x + forward * 9 * scale, BASELINE - 2);
-        const spine = arcSpine(anchor, v(anchor.x + forward * 2 * scale, anchor.y + 14 * scale), foot, 8);
+        const spine = arcSpine(anchor, v(anchor.x + forward * 2 * scale, anchor.y + 14 * scale), foot, steps(input, 8));
         rings.push(taperedRing(spine, (t) => lerp(8, 3.2, t) * scale));
         for (let c = -1; c <= 1; c++) {
           const tip = v(foot.x + forward * (5 + c * 1.5) * scale, foot.y + (2.5 + Math.abs(c)) * scale);
@@ -214,7 +222,7 @@ export function limbShapes(input: RigInput, anchors: Anchors): { rings: Ring[]; 
       default: {
         // paddle
         const foot = v(anchor.x + forward * 6 * scale, BASELINE - 3);
-        const spine = arcSpine(anchor, v(anchor.x + forward * scale, anchor.y + 13 * scale), foot, 8);
+        const spine = arcSpine(anchor, v(anchor.x + forward * scale, anchor.y + 13 * scale), foot, steps(input, 8));
         rings.push(taperedRing(spine, (t) => lerp(9, 12.5, t ** 1.6) * scale));
         break;
       }
@@ -227,7 +235,7 @@ export function crestShape(input: RigInput, anchors: Anchors): Ring | undefined 
   if (input.crest !== "grand") return undefined;
   const scale = lerp(0.9, 1.1, clamp01(input.size));
   const root = v(anchors.neck.x + 12 * scale, anchors.neck.y - 12 * scale);
-  const spine = arcSpine(root, v(root.x + 16 * scale, root.y - 20 * scale), v(root.x + 34 * scale, root.y - 6 * scale), 12);
+  const spine = arcSpine(root, v(root.x + 16 * scale, root.y - 20 * scale), v(root.x + 34 * scale, root.y - 6 * scale), steps(input, 12));
   return ridgeRing(spine, 5, 16 * scale, 3);
 }
 
@@ -293,7 +301,7 @@ export function markingMarks(input: RigInput, anchors: Anchors): Mark[] {
     marks.push({
       shape: {
         kind: "path",
-        points: ellipseRing(anchors.bodyCentre.x + 6 * scale, anchors.bodyCentre.y - 6 * scale, 46 * scale, 26 * scale, 28),
+        points: ellipseRing(anchors.bodyCentre.x + 6 * scale, anchors.bodyCentre.y - 6 * scale, 46 * scale, 26 * scale, steps(input, 28)),
         closed: true,
         smooth: true,
       },
@@ -314,14 +322,14 @@ export function bellyShape(input: RigInput, anchors: Anchors): Ring {
     anchors.bodyCentre.y + lerp(12, 20, clamp01(input.build)) * scale,
     40 * scale,
     lerp(11, 17, clamp01(input.build)) * scale,
-    26,
+    steps(input, 26),
   );
 }
 
 export function lanternGlow(input: RigInput, anchors: Anchors): Ring | undefined {
   if (input.lantern !== "lantern") return undefined;
   const scale = lerp(0.9, 1.1, clamp01(input.size));
-  return ellipseRing(anchors.bodyCentre.x, anchors.bodyCentre.y, 76 * scale, 52 * scale, 30);
+  return ellipseRing(anchors.bodyCentre.x, anchors.bodyCentre.y, 76 * scale, 52 * scale, steps(input, 30));
 }
 
 export { BASELINE };

@@ -14,7 +14,7 @@ decision, it does not ship.
 |---|---|---|
 | 1 | Genetics core + test suite | done |
 | 2 | Renderer: genotype to creature image | done |
-| 3 | Core loop: breed, hatch, raise, age, die | not started |
+| 3 | Core loop: breed, hatch, raise, age, die | done |
 | 4 | Combat and expeditions | not started |
 | 5 | Content: six species, evolution, campaign | not started |
 | 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | not started |
@@ -25,6 +25,8 @@ decision, it does not ship.
 ```
 packages/genetics    pure simulation — zero runtime dependencies, headless
 packages/rendering   genotype to drawing data; SVG and silhouette serialisers
+packages/game        state, progression, economy — pure, serialisable, no clock
+packages/ui          the React app, a thin render layer over packages/game
 ```
 
 `packages/genetics` is the product. It has no knowledge of rendering, saves, or
@@ -43,6 +45,8 @@ npm run lint
 npm run check     # all three
 npm run sim       # breed three populations over 20 generations and report
 npm run gallery   # write out/gallery.html: a plate of 50 generated creatures
+npm run dev       # the game, at http://localhost:5173
+npm run build:app # production build of the app
 ```
 
 `npm run sim` is the Phase 1 deliverable: it runs an open ranch, a closed ranch
@@ -80,5 +84,24 @@ and distinctness, and it has already caught two real rig bugs.
 Colourblind modes remap the species' hue arc onto an axis each vision type
 retains, preserving ordering, and every marking carries a hatch texture so
 colour is never the only channel.
+
+## What the core loop covers
+
+Egg to hatchling to juvenile to adult to elder, with fertility opening in
+adulthood and closing before death, and an Archive that retires a favourite
+instead of losing it. Four raising axes — diet, habitat, training, bond — each
+with a genetic interaction, and growth that closes asymptotically on the
+ceiling, so raising approaches genes and can never pass them. Branching
+evolution decided by genotype plus raising path plus bond plus held item plus
+habitat, previewable as counts but never as a recipe.
+
+The ranch screen shows the herd; the pairing screen shows Wright's F for the
+pairing you are considering and a Punnett predictor that reads only what you
+have actually established, widening into ranges where your knowledge runs out.
+The pedigree view is free and always available, because a careful reader should
+be able to deduce a genotype without spending a lens.
+
+Saves are versioned JSON in IndexedDB with export and import to file, and a
+migration chain that exists before there is anything to migrate.
 
 See `DECISIONS.md` for why each of those works the way it does.

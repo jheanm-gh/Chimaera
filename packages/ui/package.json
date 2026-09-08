@@ -1,0 +1,19 @@
+{
+  "name": "@chimaera/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The React app. A thin render layer over @chimaera/game.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@chimaera/game": "0.1.0",
+    "@chimaera/genetics": "0.1.0",
+    "@chimaera/rendering": "0.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
