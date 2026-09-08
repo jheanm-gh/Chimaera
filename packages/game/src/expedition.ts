@@ -18,6 +18,7 @@
 
 import type { GeneMap, Genome, LocusId, Rng, SpeciesId } from "@chimaera/genetics";
 import { createRng, expressPhenotype, randomWildGenome } from "@chimaera/genetics";
+import { seasonalWildGenome } from "./seasons.js";
 import type { CombatantSpec, Role, Stance } from "./combat.js";
 import type { CreatureId } from "./types.js";
 
@@ -228,13 +229,19 @@ export function wildOpponents(
   difficulty: number,
   count: number,
   rng: Rng,
+  /**
+   * The ranch day, so a migration reaches the animals you meet out there as
+   * well as the ones you catch at home (§8.5). Omitted for the League, whose
+   * opposition is a fixture rather than a population.
+   */
+  day?: number,
 ): { specs: CombatantSpec[]; genomes: Genome[] } {
   const specs: CombatantSpec[] = [];
   const genomes: Genome[] = [];
   const roles: Role[] = ["vanguard", "runner", "reader"];
 
   for (let i = 0; i < count; i++) {
-    const genome = randomWildGenome(map, rng);
+    const genome = day === undefined ? randomWildGenome(map, rng) : seasonalWildGenome(map, rng, day);
     const phenotype = expressPhenotype(genome, map);
     const raised = 0.46 + difficulty * 0.46;
     const stats: Record<string, number> = {};

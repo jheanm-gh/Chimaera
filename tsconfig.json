@@ -1,11 +1,29 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/genetics" },
-    { "path": "./packages/genetics/tsconfig.spec.json" },
-    { "path": "./packages/rendering" },
-    { "path": "./packages/rendering/tsconfig.spec.json" },
-    { "path": "./packages/game" },
-    { "path": "./packages/game/tsconfig.spec.json" }
+    {
+      "path": "./packages/genetics"
+    },
+    {
+      "path": "./packages/genetics/tsconfig.spec.json"
+    },
+    {
+      "path": "./packages/rendering"
+    },
+    {
+      "path": "./packages/rendering/tsconfig.spec.json"
+    },
+    {
+      "path": "./packages/audio"
+    },
+    {
+      "path": "./packages/audio/tsconfig.spec.json"
+    },
+    {
+      "path": "./packages/game"
+    },
+    {
+      "path": "./packages/game/tsconfig.spec.json"
+    }
   ]
 }

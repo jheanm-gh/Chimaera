@@ -1,0 +1,19 @@
+{
+  "name": "@chimaera/audio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Genome-driven voices and an adaptive score, as data. Pure specs; the Web Audio graph is built by whoever plays them.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@chimaera/genetics": "0.1.0"
+  }
+}

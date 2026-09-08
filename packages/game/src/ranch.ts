@@ -48,6 +48,7 @@ import { enterExpedition, expeditionMove, expeditionWithdraw, runBout } from "./
 import { enterShow } from "./shows.js";
 import { alleleKey, gateKey, nameAllele } from "./compendium.js";
 import { readStud } from "./exchange.js";
+import { seasonalWildGenome } from "./seasons.js";
 import type { StudOffer } from "./exchange.js";
 import { trialGenomes } from "./trials.js";
 import type { Trial } from "./trials.js";
@@ -1082,7 +1083,9 @@ function doCatchWild(state: RanchState, species?: SpeciesId): ActionResult {
   // from expeditions and the exchange, not from a walk to the reedbank.
   const map = species === undefined ? homeMap(state) : geneMapById(species);
   const { rng: catchRng, cursor } = rollFor(state, "wild");
-  const genome = randomWildGenome(map, catchRng);
+  // The fen has seasons. What is moving through it this quarter is in the pool
+  // for as long as the migration lasts and afterwards is not (§8.5).
+  const genome = seasonalWildGenome(map, catchRng, state.day);
   const phenotype = expressPhenotype(genome, map);
   const id = `c${state.nextId}`;
   const creature = newCreature({

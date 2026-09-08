@@ -777,6 +777,126 @@ solved by walking to the reedbank and catching the answer.
 
 ---
 
+## Phase 7 — Polish
+
+### D72. A voice is a phenotype, so it is data
+
+`@chimaera/audio` produces specifications and never touches Web Audio. The
+obvious reason is that a pure function is testable headlessly. The real one is
+that §7 asks for "every creature you breed sounds like itself", and that is a
+claim about *reproducibility*: the same animal must sound the same forever, two
+animals a player cannot tell apart by looking must not be distinguishable by
+ear, and a well-bred line has to sound like a line. None of that survives being
+tangled up with an audio context.
+
+`Math.random` is banned in `packages/audio` for the same reason it is banned in
+genetics and game. The one exception is the breath noise inside the Web Audio
+engine, which is presentation and not simulation.
+
+The mapping is deliberately over-driven: two octaves of pitch across a species'
+vigour range sounds exaggerated in isolation and is exactly right in play,
+because the player hears one call at a time and has to be able to tell two
+siblings apart. A test measures it — if the widest voice difference within a
+species falls below a threshold, the voice system is decoration rather than a
+channel.
+
+### D73. The score is layers, never arrangements
+
+§7 asks for a theme that adds instruments as the ranch grows. Layers over one
+slow harmonic cycle, each fading in across a band rather than switching on. The
+music never restarts, never crossfades, and never announces that something has
+changed — it is simply thicker than it was an hour ago, which is the only way
+this effect works.
+
+The thresholds are far apart on purpose. A layer that arrives every time the
+herd grows by one is a slot machine.
+
+### D74. Battle tempo tracks the whole field, not your half of it
+
+Tempo rises as the field empties, whoever is losing. Tying it to the player's
+side would tell them the result before the fight resolved, which in a mode with
+no input during the fight is the only thing the audio could spoil.
+
+### D75. The QR encoder is written here
+
+§8.1 wants a QR code as a v1 primitive. It is written from the specification
+rather than pulled in, because the runtime dependency budget is zero and a QR
+code is a finished forty-year-old format with no maintenance surface — there is
+nothing to keep up with, and a test can check it against known-good output.
+
+There is no decoder available offline, so the test file contains one: the
+inverse of every step, plus two things the inverse cannot fake. The
+Reed-Solomon syndromes must vanish, which is exactly what a scanner computes
+before it trusts a block. And the error-correction codewords are checked
+against the specification's own worked example, which is the only check in the
+file that does not depend on code written here.
+
+Both of the bugs it found produce a structurally perfect matrix that decodes to
+noise: a generator polynomial built constant-first while the division treated
+index 0 as leading, and a zig-zag that computed a shifted column at the timing
+stripe without moving the loop variable — visiting column 4 twice and column 6's
+partner never.
+
+### D76. The Compendium records what you have seen, and ids are not unique
+
+An encyclopaedia that listed the gene map on day one would hand the player the
+answer to every puzzle in it, so unseen entries keep their slot and lose their
+content. Completion counts the whole roster rather than what has been unlocked,
+so it starts near zero and is honest about how much fen there is.
+
+Building it surfaced a modelling bug that had been latent since Phase 5: allele
+and epistasis ids are unique *within* a gene map and not across them. `A_umbral`
+is the novel affinity allele on all six species and two species both call their
+pigment gate "albinism", so one discovery credited several — and the Compendium
+topped out at 90% with everything found. Both are now species-qualified, with a
+v5 migration that credits only species the player has actually met.
+
+### D77. Offline moderation refuses mechanics, not meanings
+
+§8.2 wants community allele naming "subject to moderation". A shipped word list
+is a losing game and everyone knows it. What an offline build can honestly do is
+refuse the mechanical abuses — impersonating the station's own voice, unreadable
+scripts, zero-width characters, shouting, padding — and say *which*, because a
+name box that says "invalid" teaches nothing. Names in any script are welcome.
+
+The name is recorded with the day it was given, so a server that later has to
+arbitrate between two stations has the evidence rather than a guess.
+
+### D78. A certificate fetches nothing and prints no genome
+
+§8.4 asks for exportable, printable pedigree images. One self-contained SVG: no
+fonts, no images, no script, and a test asserts the only URL in the file is the
+SVG namespace. A certificate has to survive being emailed, printed and opened in
+five years, and every external reference is one more way for it to arrive blank.
+
+The genome travels only inside the QR. A recipient gets the animal — they can
+breed to it — and not the answers: they still have to spend their own lenses.
+
+### D79. Migrations run on the ranch's calendar
+
+§8.5 wants rotating limited-time gene pools as the live-ops spine. They run on
+the player's own days rather than the wall clock, because the simulation has
+never been allowed to see a `Date` and because someone who plays in bursts
+should not be punished for it. The Daily Genome is the single exception and is
+keyed to a real date explicitly, since its whole point is that everyone gets the
+same puzzle on the same morning.
+
+A migration boosts rather than guarantees: one copy, at a few percent, on one
+haplotype. A wild animal carrying two of a novel allele would make the season a
+giveaway rather than a lead.
+
+### D80. Five hundred tab stops is a wall, not navigation
+
+The herd grid is one tab stop with a roving focus and arrow keys, which is the
+only way five hundred cards are reachable from a keyboard. Two skip links sit
+above everything, because nineteen stops between the top of the page and the
+first creature is a toolbar you have to get *past*.
+
+Found by measuring rather than by reading the markup: a script walks the tab
+order, counts the stops, and looks for controls with no accessible name.
+
+---
+
 ## Open arguments with the brief
 
 Recorded rather than acted on, so they can be settled deliberately.
@@ -839,3 +959,11 @@ needs a server, which the brief also says v1 does not have. Scores are computed,
 integer, deterministic and stored per date, so a leaderboard is a submission
 endpoint away — but there is no endpoint, and a "global leaderboard" that only
 ever shows one player would be a worse lie than an honest local best.
+
+**A7. The layered score has no composer.** §7's adaptive score is implemented as
+a slow four-chord cycle with eight synthesised layers, which is enough to
+demonstrate the mechanic and is not music. The architecture is right — layers
+that fade rather than arrangements that swap — and the moment there is a
+composer, the same layer table takes samples or stems instead of oscillators
+without anything else changing. Flagged so nobody mistakes the placeholder for
+the intent.

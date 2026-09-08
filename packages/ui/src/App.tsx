@@ -1,9 +1,12 @@
 import { activeCreatures, CHAPTER_COUNT, currentStats, isFertile, mapOf, phenotypeOf } from "@chimaera/game";
 import type { Creature, GameEvent } from "@chimaera/game";
+import { voiceFor } from "@chimaera/audio";
 import type { PaletteMode } from "@chimaera/rendering";
 import { useEffect, useState } from "react";
 import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
+import { useAudio } from "./audio/useAudio.js";
+import { AudioPanel } from "./components/AudioPanel.js";
 import { CompendiumView } from "./components/CompendiumView.js";
 import { ModesView } from "./components/ModesView.js";
 import { NewStation } from "./components/NewStation.js";
@@ -48,6 +51,7 @@ const MODES: { id: PaletteMode; label: string }[] = [
 
 export function App() {
   const ranch = useRanch();
+  const audio = useAudio(ranch.state, ranch.journal);
   const [tab, setTab] = useState<Tab>("ranch");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<PaletteMode>("full");
@@ -62,6 +66,15 @@ export function App() {
   }, [textScale]);
 
   useEffect(() => {
+    if (!newStation) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setNewStation(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newStation]);
+
+  useEffect(() => {
     if (!ranch.lastBlocked) return;
     const timer = window.setTimeout(() => ranch.clearBlocked(), 5000);
     return () => window.clearTimeout(timer);
@@ -69,9 +82,17 @@ export function App() {
 
   return (
     <div className="app">
+      {/* Nineteen tab stops between the top of the page and the herd is a wall
+          rather than a toolbar. These are the way past it. */}
+      <a className="skip" href="#herd">
+        Skip to the herd
+      </a>
+      <a className="skip" href="#sections">
+        Skip to the sections
+      </a>
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">Verdance</span>
+          <h1 className="brand-mark">Verdance</h1>
           <span className="brand-sub">
             {ranch.map.species.biome} Station · {ranch.map.species.name} · seed {ranch.state.seed}
           </span>
@@ -118,7 +139,7 @@ export function App() {
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Sections">
+      <nav className="tabs" id="sections" aria-label="Sections">
         {TABS.map((entry) => (
           <button
             key={entry.id}
@@ -150,6 +171,7 @@ export function App() {
             <option value={1.35}>Larger</option>
           </select>
         </label>
+        <AudioPanel audio={audio} />
         <button type="button" onClick={() => exportToFile(ranch.state)}>
           Export
         </button>
@@ -194,20 +216,23 @@ export function App() {
       ) : null}
 
       {newStation ? (
-        <div className="overlay" role="dialog" aria-label="Start a new station">
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Start a new station">
           <NewStation ranch={ranch} onDone={() => setNewStation(false)} />
         </div>
       ) : null}
 
-      <main className={`layout layout-${tab}`}>
+      <main className={`layout layout-${tab}`} id="main" tabIndex={-1}>
         {tab === "ranch" ? (
           <>
-            <section className="herd">
+            <section className="herd" id="herd" aria-label="The herd">
               <VirtualGrid
                 items={creatures}
                 rowHeight={252}
                 minColumnWidth={228}
                 gap={14}
+                label={`The herd, ${creatures.length} creatures. Arrow keys to move.`}
+                activeKey={selected?.id}
+                onActivate={(creature) => setSelectedId(creature.id)}
                 keyOf={(creature) => creature.id}
                 empty={
                   <p className="note">
@@ -219,7 +244,15 @@ export function App() {
                     creature={creature}
                     mode={mode}
                     selected={creature.id === selected?.id}
-                    onSelect={() => setSelectedId(creature.id)}
+                    // Roving tabindex: one stop for the whole grid, and the
+                    // arrow keys do the rest.
+                    tabbable={creature.id === selected?.id || (selected === undefined && creature === creatures[0])}
+                    onSelect={() => {
+                      setSelectedId(creature.id);
+                      // Selecting an animal is how you hear it. Every creature
+                      // you breed sounds like itself (§7).
+                      audio.play(voiceFor(phenotypeOf(creature), mapOf(creature)));
+                    }}
                   />
                 )}
               />
@@ -298,18 +331,35 @@ function CreatureCard({
   creature,
   mode,
   selected,
+  tabbable,
   onSelect,
 }: {
   creature: Creature;
   mode: PaletteMode;
   selected: boolean;
+  tabbable: boolean;
   onSelect: () => void;
 }) {
   const map = mapOf(creature);
   const phenotype = phenotypeOf(creature);
   const stats = currentStats(creature, phenotype, map);
   return (
-    <button type="button" className={`creature-card${selected ? " selected" : ""}`} onClick={onSelect}>
+    <button
+      type="button"
+      className={`creature-card${selected ? " selected" : ""}`}
+      tabIndex={tabbable ? 0 : -1}
+      aria-current={selected ? "true" : undefined}
+      ref={(node) => {
+        // Follow the roving focus, but only when focus is already inside the
+        // grid — stealing it on every selection would fight the mouse.
+        if (!node || !selected) return;
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && active.classList.contains("creature-card") && active !== node) {
+          node.focus({ preventScroll: true });
+        }
+      }}
+      onClick={onSelect}
+    >
       <span className="card-head">
         <span className="card-name">{creature.name}</span>
         <span className="card-sex">{creature.sex === "female" ? "♀" : "♂"}</span>

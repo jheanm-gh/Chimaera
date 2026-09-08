@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type React from "react";
 import type { ReactNode } from "react";
 
 interface Props<T> {
@@ -9,6 +10,17 @@ interface Props<T> {
   readonly keyOf: (item: T) => string;
   readonly render: (item: T) => ReactNode;
   readonly empty?: ReactNode;
+  /**
+   * The item the keyboard is currently on, and how to move it.
+   *
+   * Supplied together or not at all. With them the grid becomes a single tab
+   * stop navigated by arrow keys — which is the only way five hundred cards are
+   * usable from a keyboard, because five hundred tab stops is not navigation,
+   * it is a wall.
+   */
+  readonly activeKey?: string;
+  readonly onActivate?: (item: T) => void;
+  readonly label?: string;
 }
 
 /**
@@ -32,6 +44,9 @@ export function VirtualGrid<T>({
   keyOf,
   render,
   empty,
+  activeKey,
+  onActivate,
+  label,
 }: Props<T>) {
   const viewport = useRef<HTMLDivElement | null>(null);
   const [metrics, setMetrics] = useState({ scrollTop: 0, height: 600, width: 900 });
@@ -61,10 +76,62 @@ export function VirtualGrid<T>({
 
   if (items.length === 0 && empty) return <div className="grid-empty">{empty}</div>;
 
+  const activeIndex = activeKey === undefined ? -1 : items.findIndex((item) => keyOf(item) === activeKey);
+
+  /**
+   * Arrow keys move by one and by a row; Home and End jump to the ends.
+   *
+   * Moving also scrolls the target into view, because a roving focus that lands
+   * outside the window is a focus the user has lost.
+   */
+  const move = (delta: number): void => {
+    if (!onActivate || items.length === 0) return;
+    const from = activeIndex < 0 ? 0 : activeIndex;
+    const to = Math.max(0, Math.min(items.length - 1, from + delta));
+    const target = items[to];
+    if (!target) return;
+    onActivate(target);
+    const row = Math.floor(to / columns);
+    const element = viewport.current;
+    if (!element) return;
+    const top = row * stride;
+    if (top < element.scrollTop) element.scrollTo({ top });
+    else if (top + rowHeight > element.scrollTop + element.clientHeight) {
+      element.scrollTo({ top: top + rowHeight - element.clientHeight });
+    }
+  };
+
   return (
     <div
       className="virtual-viewport"
       ref={viewport}
+      {...(onActivate
+        ? {
+            role: "grid",
+            "aria-label": label,
+            "aria-rowcount": rows,
+            onKeyDown: (event: React.KeyboardEvent) => {
+              const step: Record<string, number> = {
+                ArrowRight: 1,
+                ArrowLeft: -1,
+                ArrowDown: columns,
+                ArrowUp: -columns,
+                PageDown: columns * 4,
+                PageUp: -columns * 4,
+              };
+              if (event.key in step) {
+                event.preventDefault();
+                move(step[event.key] as number);
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                move(-items.length);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                move(items.length);
+              }
+            },
+          }
+        : {})}
       onScroll={(event) => {
         // Read synchronously. React releases the synthetic event as soon as the
         // handler returns, so reaching for `event.currentTarget` inside the
@@ -87,7 +154,7 @@ export function VirtualGrid<T>({
           }}
         >
           {visible.map((item) => (
-            <div key={keyOf(item)} style={{ height: rowHeight }}>
+            <div key={keyOf(item)} style={{ height: rowHeight }} role={onActivate ? "gridcell" : undefined}>
               {render(item)}
             </div>
           ))}

@@ -14,6 +14,7 @@ export default defineConfig({
     alias: {
       "@chimaera/genetics": source("genetics"),
       "@chimaera/rendering": source("rendering"),
+      "@chimaera/audio": source("audio"),
       "@chimaera/game": source("game"),
     },
   },

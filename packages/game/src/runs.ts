@@ -290,7 +290,7 @@ export function expeditionMove(
       return combatantFor(creature, member.hp);
     });
     const count = node.kind === "warden" ? mine.length : Math.max(1, Math.min(mine.length, 1 + rng.int(mine.length)));
-    const theirs = wildOpponents(map, node.difficulty, count, rng).specs;
+    const theirs = wildOpponents(map, node.difficulty, count, rng, state.day).specs;
     const result = simulateBattle(mine, theirs, rng, { quiet: true });
 
     const survivorHp = new Map(result.survivors.filter((s) => s.team === 0).map((s) => [s.id, s.hp]));
@@ -339,7 +339,7 @@ export function expeditionMove(
   }
 
   if (node.kind === "wild") {
-    const { genomes } = wildOpponents(map, node.difficulty, 1, rng);
+    const { genomes } = wildOpponents(map, node.difficulty, 1, rng, state.day);
     loot = mergeLoot(loot, { specimens: genomes });
     log.push("Took a wild specimen. Unrelated to anything you own.");
   }

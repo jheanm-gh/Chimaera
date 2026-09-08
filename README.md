@@ -18,15 +18,16 @@ decision, it does not ship.
 | 4 | Combat and expeditions | done |
 | 5 | Content: six species, evolution, campaign | done |
 | 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | done |
-| 7 | Polish: audio, compendium, genome codes, a11y | not started |
+| 7 | Polish: audio, compendium, genome codes, a11y | done |
 
 ## Layout
 
 ```
 packages/genetics    pure simulation — zero runtime dependencies, headless
-packages/rendering   genotype to drawing data; SVG and silhouette serialisers
+packages/rendering   genotype to drawing data; SVG, silhouettes, QR, certificates
+packages/audio       genome to voice, and the adaptive score — as data, not sound
 packages/game        state, progression, economy — pure, serialisable, no clock
-packages/ui          the React app, a thin render layer over packages/game
+packages/ui          the React app, a thin render layer over the packages above
 ```
 
 `packages/genetics` is the product. It has no knowledge of rendering, saves, or
@@ -210,5 +211,51 @@ Genome codes underpin the last three. Crockford base32 with a checksum, and a
 test corrupts every character position to every other symbol and asserts that
 not one corruption is ever accepted — a code that decoded into a *different
 valid genome* would look exactly like the genetics being broken.
+
+## Sound
+
+`packages/audio` produces specifications and never makes a noise; the app builds
+the Web Audio graph from them. That split exists because a voice is a
+*phenotype*: the same animal has to sound the same forever, two animals you
+cannot tell apart by looking must not be distinguishable by ear, and a
+well-bred line should sound like a line. `Math.random` is banned here for the
+same reason it is banned in the simulation.
+
+Pitch comes from size, timbre from body type, envelope from temperament — over
+two octaves across a species' range, because the player hears one call at a time
+and has to be able to tell siblings apart. A test measures the spread and fails
+if it collapses.
+
+The ranch theme is layers over one slow harmonic cycle, fading in across bands
+rather than switching on, so growth is heard as a swell and never as an event.
+Battle tempo tracks the whole field rather than your half of it, because tying
+it to your side would give away the result of a fight you cannot influence.
+Music, effects and creature calls are separately levelled and muted, and nothing
+plays until you ask it to.
+
+## The franchise hooks (§8)
+
+Genome codes, and a QR encoder written from the specification rather than
+pulled in — a test contains a decoder, checks the Reed-Solomon syndromes the way
+a scanner does, and verifies the error-correction codewords against the spec's
+own worked example.
+
+A Compendium that records what you have *seen* and never what exists, with
+completion counted against the whole roster. Community naming for novel alleles,
+recorded with the day so a server could arbitrate later. Lineage certificates as
+self-contained SVGs that fetch nothing and print no genome — the QR carries the
+animal, not the answers. And seasonal migrations on the ranch's own calendar,
+each putting one novel allele into the wild pool for ninety days and taking it
+away again.
+
+`WORLD.md` is the world bible: six named biomes, four factions, and an ecology
+written so that every piece of it makes the breeding decision heavier.
+
+## Getting about with a keyboard
+
+The herd is one tab stop with a roving focus and arrow keys — five hundred cards
+is not five hundred tab stops. Skip links sit above everything, dialogs close on
+Escape, and the tab order is measured by a script rather than assumed from the
+markup.
 
 See `DECISIONS.md` for why each of those works the way it does.
