@@ -7,6 +7,7 @@ import { CommissionView } from "./components/CommissionView.js";
 import { CreatureFigure } from "./components/CreatureFigure.js";
 import { prewarm } from "./sprites.js";
 import { BattleScene } from "./components/BattleScene.js";
+import { NextStep } from "./components/NextStep.js";
 import { useAudio } from "./audio/useAudio.js";
 import { AudioPanel } from "./components/AudioPanel.js";
 import { CompendiumView } from "./components/CompendiumView.js";
@@ -240,6 +241,8 @@ export function App() {
           <NewStation ranch={ranch} onDone={() => setNewStation(false)} />
         </div>
       ) : null}
+
+      <NextStep ranch={ranch} onGo={(next) => setTab(next)} />
 
       <main className={`layout layout-${tab}`} id="main" tabIndex={-1}>
         {tab === "ranch" ? (

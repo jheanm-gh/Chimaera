@@ -74,12 +74,24 @@ export interface CampaignView {
   readonly phenotype: (creature: Creature) => Phenotype;
 }
 
+/** The screen where an objective is actually carried out. */
+export type ObjectiveScreen = "pairing" | "ranch" | "field";
+
 export interface Objective {
   readonly id: string;
   /** What the commission asks for. Shown before it is met. */
   readonly label: string;
   /** Why it was worth asking. Shown after. */
   readonly lesson: string;
+  /**
+   * Where the player does this.
+   *
+   * Knowing what the board wants is not the same as knowing which of nine tabs
+   * to open, and a player who has to find that out by exploring has been given
+   * a puzzle nobody meant to set. Breeding is the answer often enough to be the
+   * default, so only the exceptions say so.
+   */
+  readonly where?: ObjectiveScreen;
   /**
    * Events from the action just applied. Most objectives ignore them; the ones
    * that cannot (a lethal egg is a moment, not a state) do not.
@@ -450,6 +462,7 @@ export function buildCampaign(map: GeneMap): readonly Chapter[] {
         },
         {
           id: "c1-carrier",
+          where: "ranch",
           label: `Identify a carrier: a ${species} showing ${t.dominant.name.toLowerCase()} that is proven to carry ${t.recessive.name.toLowerCase()}`,
           lesson:
             "A revealed heterozygote is worth more than a homozygote you guessed at, because you can plan with it.",
@@ -607,6 +620,7 @@ export function buildCampaign(map: GeneMap): readonly Chapter[] {
         },
         {
           id: "c5-identified",
+          where: "ranch",
           label: `Prove a living ${species} is a lethal carrier`,
           lesson: "A known carrier is a usable animal. An unknown one is a coin flip on every clutch.",
           test: (view) =>

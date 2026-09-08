@@ -1091,6 +1091,27 @@ from the most recent strike *on* it, and a sink-and-fade on a down. An affinity
 hit gets its own colour and the words "well matched", because that is the
 genetic lever paying off and it should be visible that it did.
 
+### D90. Knowing what the board wants is not knowing which tab to open
+
+"Not intuitive" turned out to be one specific gap. The campaign has known what
+it wants since Phase 5 — the objectives are authored, tested and listed — but
+they were listed on the Commission tab, which is the fourth of nine and which a
+new player has no reason to open. Everything needed to guide someone was already
+in the game and none of it was where they were looking.
+
+`NextStep` puts the next unmet objective under the tab bar on every screen, with
+the button that goes where it is done. `Objective` gained a `where` hint for the
+handful that are not a pairing; breeding is the answer often enough to be the
+default, so only the exceptions say so.
+
+It says *what*, never *how*. That rule is from §4 and it still holds: the lesson
+only lands if the player works out the cross themselves, so an unmet objective
+shows the board's request and nothing else — the "Why" button opens the
+Commission, and the lesson text still only appears after the objective is met.
+
+Dismissable, and it stays dismissed until the objective actually changes. A hint
+that cannot be turned off is a nag.
+
 ---
 
 ## Open arguments with the brief

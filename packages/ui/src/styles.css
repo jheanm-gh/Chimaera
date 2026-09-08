@@ -825,3 +825,64 @@ main:focus { outline: none; }
   color: var(--pale);
   font-family: var(--font-body);
 }
+
+/* --- What to do next -----------------------------------------------------
+   Sits under the tab bar on every screen. Loud enough to be read on the way
+   past, quiet enough not to compete with the herd. */
+.next-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  background: var(--board-lift);
+  border: 1px solid var(--rule);
+  /* The one accent on the screen: this is the thing a lost player is looking
+     for, so it gets the stamp colour and nothing else does. */
+  border-left: 3px solid var(--stamp);
+}
+
+.next-step-body {
+  min-width: 0;
+}
+
+.next-step-eyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pale-dim);
+}
+
+.next-step-task {
+  margin: 0;
+  color: var(--pale);
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--text-scale));
+}
+
+.next-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.next-step-actions .primary {
+  background: var(--stamp);
+  border-color: var(--stamp);
+  color: var(--card);
+}
+
+.next-step-actions .primary:hover {
+  background: var(--stamp-dim);
+  border-color: var(--stamp-dim);
+}
+
+.next-step-actions .quiet {
+  border-color: transparent;
+  padding-inline: 8px;
+  color: var(--pale-dim);
+}
