@@ -70,16 +70,21 @@ export function BattleScene({ playback, onDone }: Props) {
   useEffect(() => subscribe(() => bump((n) => n + 1)), []);
 
   const actors = playback.actors;
-  const near = actors.filter((a) => a.team === 0);
-  const far = actors.filter((a) => a.team === 1);
+  const near = useMemo(() => actors.filter((a) => a.team === 0), [actors]);
+  const far = useMemo(() => actors.filter((a) => a.team === 1), [actors]);
 
   // Both sides face the fight. The sprites are drawn facing right by default,
   // so the near team is left alone and the far team is flipped to look back
   // down the sand at it.
-  const sprites = new Map(
-    actors.map((actor) => [actor.id, getBattleSprite(actor.id, actor.species, actor.genome, actor.team === 1)]),
+  //
+  // Memoised, and it matters more than it looks: a fresh Map on every render is
+  // an unstable dependency for the animation effect, which tore the whole loop
+  // down and restarted it sixty times a second. The clock never advanced past
+  // the first frame, so the message box typed one letter and the round counter
+  // stuck on one.
+  const ready = actors.every(
+    (actor) => getBattleSprite(actor.id, actor.species, actor.genome, actor.team === 1) !== undefined,
   );
-  const ready = [...sprites.values()].every((sprite) => sprite !== undefined);
 
   const script = useMemo(() => {
     let hits: Hit[] = [];
@@ -111,6 +116,36 @@ export function BattleScene({ playback, onDone }: Props) {
     return { hits, downs, end: end * squeeze + 1.1 };
   }, [playback]);
 
+  /**
+   * What the box says, and when.
+   *
+   * Built from the same script the canvas is playing, so the words and the
+   * animation cannot disagree. Written in the naturalist's register rather than
+   * a damage readout: the player is watching an animal do something, and
+   * "Tussock drove its tusks home" tells them more about their breeding than
+   * "-17" does.
+   */
+  const narration = useMemo(() => {
+    const lines: { at: number; text: string }[] = [];
+    const nameOf = (id: string): string => actors.find((a) => a.id === id)?.name ?? "It";
+    lines.push({ at: 0, text: `${playback.title}. Three of yours against three of the fen's.` });
+    for (const hit of script.hits) {
+      const by = nameOf(hit.by);
+      const target = nameOf(hit.target);
+      const weight = hit.affinity > 1.05 ? "found the gap and" : hit.affinity < 0.95 ? "glanced off as it" : "";
+      lines.push({
+        at: hit.at,
+        text: `${by} ${weight ? `${weight} ` : ""}struck ${target} for ${Math.round(hit.damage)}.`,
+      });
+    }
+    for (const down of script.downs) {
+      lines.push({ at: down.at + 0.05, text: `${nameOf(down.who)} went down.` });
+    }
+    lines.sort((a, b) => a.at - b.at);
+    return lines;
+  }, [script, actors, playback.title]);
+
+  const [now, setNow] = useState(0);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
@@ -121,9 +156,17 @@ export function BattleScene({ playback, onDone }: Props) {
     if (!context) return;
     context.imageSmoothingEnabled = false;
 
+    // Built here rather than during render: by the time the effect runs, `ready`
+    // has established that every sprite is in the cache, so these lookups are
+    // hits and the map is stable for the life of the loop.
+    const sprites = new Map(
+      actors.map((actor) => [actor.id, getBattleSprite(actor.id, actor.species, actor.genome, actor.team === 1)]),
+    );
+
     const started = performance.now();
     let frame = 0;
     let finished = false;
+    let clock = -1;
 
     // Sprites are painted through a scratch canvas so a hit flash can recolour
     // one without touching the cached pixels every other frame reads.
@@ -135,6 +178,13 @@ export function BattleScene({ playback, onDone }: Props) {
       if (!finished && now > script.end) {
         finished = true;
         setDone(true);
+      }
+      // The box reads the same clock as the canvas, but at ten hertz rather
+      // than sixty: a message that re-renders every frame is a message that
+      // re-renders React sixty times a second to change nothing.
+      if (Math.floor(now * 10) !== Math.floor(clock * 10)) {
+        clock = now;
+        setNow(now);
       }
       const health = new Map<string, number>(actors.map((a) => [a.id, 1]));
       for (const hit of script.hits) {
@@ -282,22 +332,37 @@ export function BattleScene({ playback, onDone }: Props) {
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [ready, script, actors, near, far, sprites]);
+  }, [ready, script, actors, near, far]);
 
   const won = playback.winner === 0;
+  // The most recent line whose moment has passed, typed out to where the clock
+  // has reached — the letter-by-letter reveal this idiom runs on.
+  const current = [...narration].reverse().find((line) => line.at <= now);
+  const spoken = current
+    ? current.text.slice(0, Math.max(1, Math.round((now - current.at) * 46)))
+    : undefined;
   return (
     <div className="battle-scene">
       <div className="battle-stage">
         <canvas ref={canvas} width={STAGE.width} height={STAGE.height} aria-hidden="true" />
         {!ready ? <p className="battle-loading">Setting the sand…</p> : null}
       </div>
-      <div className="battle-caption">
-        <p role="status">
+      <div className="msgbox" role="status" aria-live="polite">
+        <p className="battle-line">
           {done
             ? won
               ? `Took ${playback.title} in ${playback.rounds} rounds.`
               : `Lost ${playback.title} after ${playback.rounds} rounds.`
-            : `${playback.title} — ${playback.rounds} rounds`}
+            : (spoken ?? `${playback.title}…`)}
+          <span className="msgbox-cursor" aria-hidden="true">
+            ▾
+          </span>
+        </p>
+      </div>
+      <div className="battle-caption">
+        <p className="mono">
+          Round {Math.min(playback.rounds, Math.max(1, Math.ceil((now / Math.max(0.01, script.end)) * playback.rounds)))} of{" "}
+          {playback.rounds}
         </p>
         <button type="button" onClick={onDone}>
           {done ? "Done" : "Skip"}

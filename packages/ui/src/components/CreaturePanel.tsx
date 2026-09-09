@@ -26,6 +26,7 @@ import { saveFile } from "../download.js";
 import type { RanchController } from "../useRanch.js";
 
 import { CreatureFigure } from "./CreatureFigure.js";
+import { MovePanel } from "./MovePanel.js";
 
 /**
  * Writes the certificate out as a file.
@@ -99,6 +100,7 @@ export function CreaturePanel({ creature, ranch, mode, onSelectRelative }: Props
       </header>
 
       <CreatureFigure creature={creature} mode={mode} width={280} suppressDominanceAt={suppressing} />
+      <MovePanel creature={creature} />
 
       {creature.stage === "egg" ? (
         <p className="note">

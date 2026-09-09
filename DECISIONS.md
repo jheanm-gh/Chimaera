@@ -1240,6 +1240,55 @@ is not on the main thread, so the 500-creature herd still measures zero long
 tasks at a p50 of 17ms — the worker simply spends longer drawing where nobody
 is waiting on it.
 
+### D97. The chrome was the web app showing through
+
+The sprites had been rebuilt twice and the app still did not look like a game,
+because everything around them was a web page: rounded cards, blurred drop
+shadows, a serif body face, and native `<select>` controls rendering a
+platform-styled pill in the middle of a pixel panel.
+
+Four changes, none of them clever:
+
+**A window is four values.** A face, a near-black outer edge, a lit bevel on the
+top-left and a shaded one on the bottom-right, drawn with inset shadows.
+Everything panel-shaped in the app is built from those, and a `.win-deep`
+variant with the bevel reversed reads as pressed into the board rather than
+standing on it.
+
+**Buttons invert when pressed.** The bevel flips and the padding shifts a pixel.
+It costs four lines and it is most of what makes a control feel like a game's
+rather than a form's.
+
+**Hard shadows.** A blurred shadow is the one thing on a pixel screen with no
+pixels in it, so cards throw a three-pixel offset block instead.
+
+**Pixel type.** Silkscreen is a true bitmap face and only reads at whole pixel
+sizes, so it takes the short labels; Pixelify Sans carries running text, where a
+strict bitmap face becomes unreadable at length.
+
+### D98. The box speaks from the same script the canvas plays
+
+A message box that narrated separately from the animation would be a second
+source of truth about a fight that has already been decided. It reads the same
+compressed log, types out at forty-six characters a second, and is written in
+the naturalist's register rather than as a damage readout — "Umber struck Reed
+for 17" tells the player more about their breeding than a bare number does.
+
+It also caught a real bug. The scene's clock had to reach React for the box to
+follow it, and the moment it did, the text typed one letter and stopped: the
+animation effect depended on a `Map` and two arrays rebuilt on every render, so
+every state update tore the loop down and restarted it. The sprites are now
+looked up inside the effect, where `ready` has already established they are
+cached.
+
+### D99. The build panel is the answer to "I don't understand the traits"
+
+The eight measurements and the moves they unlock sit a centimetre apart on the
+creature panel, because they are the same information. A creature with no tusks
+has no Gore, and putting the cause next to the effect means the player never has
+to be told the rule — which is the same reason the sprite had to start drawing
+the armament.
+
 ---
 
 ## Open arguments with the brief

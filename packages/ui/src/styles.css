@@ -24,9 +24,81 @@
   --bad: #b4472b;
   --text-scale: 1;
 
-  --font-display: "Zilla Slab", Georgia, serif;
-  --font-body: Spectral, Georgia, "Times New Roman", serif;
+  /* Chrome type. Silkscreen is a true bitmap face and only reads at whole
+     pixel sizes, so it is used for short labels; Pixelify Sans carries the
+     running text, where a strict bitmap face becomes unreadable at length. */
+  --font-display: Silkscreen, "Courier New", monospace;
+  --font-body: "Pixelify Sans", "Trebuchet MS", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Window chrome. A game window is four values: a face, a near-black outer
+     edge, a lit bevel on the top-left and a shaded one on the bottom-right.
+     Everything panel-shaped in the app is built from these. */
+  --win-face: #4a5142;
+  --win-face-deep: #343a2e;
+  --win-edge: #171a14;
+  --win-lit: #6f7763;
+  --win-shade: #2a2f24;
+  /* The message box is deliberately darker than every other window, because it
+     is the one surface that speaks. */
+  --box-face: #1d211a;
+}
+
+/* --- Pixel windows -------------------------------------------------------
+   Hard edges, no radius, no blur. A two-tone bevel drawn with inset shadows
+   costs nothing and is what makes a div read as a panel in a game rather than
+   as a card on a web page. */
+.win {
+  background: var(--win-face);
+  border: 2px solid var(--win-edge);
+  border-radius: 0;
+  box-shadow:
+    inset 2px 2px 0 var(--win-lit),
+    inset -2px -2px 0 var(--win-shade);
+}
+
+.win-deep {
+  background: var(--win-face-deep);
+  border: 2px solid var(--win-edge);
+  border-radius: 0;
+  /* Bevel reversed: this one reads as pressed into the board rather than
+     standing on it, which is what a list or a well should look like. */
+  box-shadow:
+    inset 2px 2px 0 var(--win-shade),
+    inset -2px -2px 0 var(--win-lit);
+}
+
+/* The dialogue box. Two frames — a near-black face inside a pale rule — is the
+   convention this whole idiom inherited, and it is instantly legible as
+   "something is being said to you". */
+.msgbox {
+  background: var(--box-face);
+  border: 2px solid var(--win-edge);
+  box-shadow:
+    inset 0 0 0 2px var(--pale-dim),
+    inset 0 0 0 4px var(--box-face);
+  padding: 14px 18px;
+  font-family: var(--font-body);
+  font-size: calc(17px * var(--text-scale));
+  line-height: 1.45;
+  color: var(--pale);
+  min-height: 76px;
+}
+
+.msgbox-cursor {
+  display: inline-block;
+  width: 0.55em;
+  color: var(--warn);
+  animation: msg-blink 0.9s steps(2) infinite;
+}
+
+@keyframes msg-blink {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msgbox-cursor { animation: none; }
 }
 
 * { box-sizing: border-box; }
@@ -46,17 +118,60 @@ body {
 button, select, input { font: inherit; color: inherit; }
 
 button {
-  background: transparent;
-  border: 1px solid var(--rule);
+  background: var(--win-face);
+  border: 2px solid var(--win-edge);
   color: var(--pale);
   padding: 5px 11px;
-  border-radius: 2px;
+  border-radius: 0;
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 0.78em;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  font-size: 0.72em;
+  letter-spacing: 0.02em;
+  box-shadow:
+    inset 2px 2px 0 var(--win-lit),
+    inset -2px -2px 0 var(--win-shade);
 }
 button:hover { background: var(--board-lift); }
+/* Pressed: the bevel inverts, so the control goes *in* under the cursor. */
+button:active:not(:disabled) {
+  box-shadow:
+    inset 2px 2px 0 var(--win-shade),
+    inset -2px -2px 0 var(--win-lit);
+  padding: 6px 10px 4px 12px;
+}
+button:disabled {
+  box-shadow: none;
+  border-color: var(--win-shade);
+  color: var(--pale-dim);
+  opacity: 0.55;
+}
+select, input[type="text"] {
+  background: var(--win-face-deep);
+  border: 2px solid var(--win-edge);
+  border-radius: 0;
+  color: var(--pale);
+  font-family: var(--font-body);
+  font-size: 0.9em;
+  padding: 4px 6px;
+  box-shadow:
+    inset 2px 2px 0 var(--win-shade),
+    inset -2px -2px 0 var(--win-lit);
+  appearance: none;
+  /* The arrow, drawn as a triangle rather than left to the platform, which
+     would render a rounded native control in the middle of a pixel panel. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--pale-dim) 50%),
+    linear-gradient(135deg, var(--pale-dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 26px;
+}
+
+input[type="text"] {
+  background-image: none;
+  padding-right: 6px;
+}
+
 button:focus-visible, select:focus-visible, input:focus-visible {
   outline: 2px solid var(--stamp);
   outline-offset: 2px;
@@ -151,10 +266,12 @@ select {
 .creature-card {
   width: 100%; height: 100%;
   display: flex; flex-direction: column; gap: 0;
-  padding: 0; border-radius: 2px; overflow: hidden;
-  background: var(--card); color: var(--ink); border: 1px solid rgba(0,0,0,0.25);
+  padding: 0; border-radius: 0; overflow: hidden;
+  background: var(--card); color: var(--ink); border: 2px solid var(--win-edge);
   text-align: left; font-family: var(--font-body); font-size: 1em; letter-spacing: 0;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+  /* A hard offset drop rather than a blur: a blurred shadow is the one thing on
+     a pixel screen that has no pixels in it. */
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
 }
 .creature-card:hover { background: var(--card); transform: translateY(-2px); }
 .creature-card.selected { outline: 2px solid var(--stamp); outline-offset: -2px; }
@@ -171,9 +288,12 @@ select {
 /* --- panels ------------------------------------------------------------- */
 
 .panel {
-  background: var(--board-deep);
-  border: 1px solid var(--rule);
-  border-radius: 3px;
+  background: var(--win-face-deep);
+  border: 2px solid var(--win-edge);
+  border-radius: 0;
+  box-shadow:
+    inset 2px 2px 0 var(--win-lit),
+    inset -2px -2px 0 var(--win-shade);
   padding: 16px 18px 20px;
 }
 .panel h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.25em; margin: 0 0 4px; }
@@ -886,3 +1006,91 @@ main:focus { outline: none; }
   padding-inline: 8px;
   color: var(--pale-dim);
 }
+
+.battle-line { margin: 0; }
+.battle-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--win-face);
+  border: 2px solid var(--win-edge);
+  box-shadow:
+    inset 2px 2px 0 var(--win-lit),
+    inset -2px -2px 0 var(--win-shade);
+  padding: 8px 12px;
+}
+.battle-caption p { margin: 0; color: var(--pale-dim); font-size: 12px; }
+
+/* --- Build and moveset --------------------------------------------------- */
+.movepanel { margin-top: 14px; }
+
+.measure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 2px 12px;
+  margin: 0 0 6px;
+}
+.measure-grid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  border-bottom: 1px dotted var(--rule);
+  padding-bottom: 1px;
+}
+.measure-grid dt {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pale-dim);
+}
+.measure-grid dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pale);
+  font-variant-numeric: tabular-nums;
+}
+
+.move-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+.move-cell {
+  padding: 7px 9px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* The kind's hue arrives as `color` from .k-*, so the left rule picks it up
+     without every cell needing its own rule. */
+  border-left-width: 4px;
+  border-left-color: currentColor;
+}
+.move-name {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--pale);
+  letter-spacing: 0.02em;
+}
+.move-kind {
+  font-family: var(--font-display);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.move-flavour {
+  font-size: 12px;
+  color: var(--pale-dim);
+  line-height: 1.35;
+}
+
+.k-pierce { color: #e08a5c; }
+.k-blunt { color: #9fb0c4; }
+.k-grip { color: #c9a05e; }
+.k-toxin { color: #9bbd6a; }
+.k-display { color: #b79ad0; }
