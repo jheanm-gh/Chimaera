@@ -1289,6 +1289,48 @@ has no Gore, and putting the cause next to the effect means the player never has
 to be told the rule — which is the same reason the sprite had to start drawing
 the armament.
 
+### D100. Modular, not scalable
+
+Geometry no longer scales continuously. The renderer used to stretch the trunk
+with mass, grow the whole animal with vigour, and turn an armament's length in
+centimetres into its length in pixels — which gave every individual its own
+proportions.
+
+That is wrong twice over. It reads badly: a species whose proportions vary
+continuously has no silhouette of its own, only a cloud of them, and the
+outliers come out misshapen rather than distinctive. And it cannot be drawn by
+hand — a part that must work at any proportion has to be generated, while a part
+that appears in three known sizes can be drawn once each and dropped in.
+
+So every slot resolves to a *named variant*: three build steps per species and
+nothing between them, five limbs, five tails, five crowns in three sizes, seven
+armaments, five hides. `PartSet` is the whole description of an animal's
+appearance and contains no numbers at all, which means it is exactly the file
+list a parts atlas would have to supply.
+
+Dimensions are stated, not drawn. A 40kg Bramblehog and a 100kg one share their
+art and differ on their card — the way a Pokémon's sprite does not change with
+its weight — while a tusked one and a hornless one are visibly different
+animals, because that is a different part.
+
+### D101. Two bugs from reading the whole trait bag
+
+Both found by the tests written for the new part system, and both the same
+mistake at different depths.
+
+**Every legged species lost its legs.** The limb variant was matched against all
+of a creature's trait words joined together, and nearly every species has some
+locus whose expressed phenotype is the string "none" — an unlit lantern, a plain
+tail. The limb table's first row matched that "none". A slot is decided by its
+own locus or by nothing.
+
+**Then half the Kite-Ossels lost theirs.** With the lookup correctly scoped, the
+species' own limb trait is `CLASP` — which is Y-linked with a suppressed
+phenotype of "none", so every female expresses it. But that word means "no foot
+clasp", not "no legs": a hen has ordinary feet. The limb table now has no row
+that can return "none" at all. Only a body plan with zero limb pairs removes an
+animal's legs, because a trait word must not be able to amputate.
+
 ---
 
 ## Open arguments with the brief

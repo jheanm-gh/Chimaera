@@ -25,7 +25,9 @@ import { phenotypeFingerprint } from "../render.js";
 import type { PaletteMode } from "../types.js";
 import { planFor } from "../rig/plans.js";
 import { measure } from "@chimaera/genetics";
-import type { ArmamentKind, HideKind, Morphology } from "@chimaera/genetics";
+import type { HideKind, Morphology } from "@chimaera/genetics";
+import { BUILD_SCALE, partsFor } from "./parts.js";
+import type { ArmamentVariant, CrownVariant, PartSet } from "./parts.js";
 import type { BodyPlan } from "../rig/plan.js";
 import { at, bounds, createBitmap, EMPTY, fillEllipse, fillTaper, fillTriangle, put } from "./bitmap.js";
 import type { Bitmap } from "./bitmap.js";
@@ -89,7 +91,6 @@ interface Layout {
   readonly wave: number;
 }
 
-const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /**
@@ -101,7 +102,7 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
  * round, and a shared divisor would leave one of them a smear and the other a
  * dot in the middle of an empty box.
  */
-function layoutFor(plan: BodyPlan, build: number, size: number, facing: number): Layout {
+function layoutFor(plan: BodyPlan, parts: PartSet, facing: number): Layout {
   const rxPlan = plan.bodyRx;
   const ryPlan = Math.max(...plan.bodyRyTop, ...plan.bodyRyBottom);
   // Everything that gets drawn, not just the trunk. A membrane sweeps back
@@ -125,7 +126,10 @@ function layoutFor(plan: BodyPlan, build: number, size: number, facing: number):
   // for the parts whose reach the spans above can only approximate.
   const margin = 4;
   const scale = Math.min((SPRITE.width - margin * 2) / spanX, (SPRITE.height - margin * 2) / spanY) * 0.9;
-  const grow = lerp(0.9, 1.06, clamp01(size));
+  // No continuous growth. Two animals of the same species and build step are
+  // drawn at the same size however much they weigh: the weight is on the card.
+  const step = BUILD_SCALE[parts.build];
+  const grow = step.length;
 
   // A gliding plan is drawn shallow in the illustration because the wing carries
   // the shape there. At sprite scale that leaves a slab on stilts, so the trunk
@@ -134,9 +138,13 @@ function layoutFor(plan: BodyPlan, build: number, size: number, facing: number):
   // Quillfen — which is low-slung and deep-bodied, and which this sat 9.8%
   // away from when the glider was given the same trunk.
   const depth = plan.posture === "spread" ? 1.28 : 1;
+  // Three trunks per species, nothing between them. The interpolation that used
+  // to sit here gave every individual its own proportions, which is a cloud of
+  // silhouettes rather than a species with one.
   const rx = rxPlan * scale * grow;
-  const ryTop = lerp(plan.bodyRyTop[0], plan.bodyRyTop[1], clamp01(build)) * scale * grow * depth;
-  const ryBottom = lerp(plan.bodyRyBottom[0], plan.bodyRyBottom[1], clamp01(build)) * scale * grow * depth;
+  const girth = { slight: 0.12, middling: 0.5, heavy: 0.9 }[parts.build];
+  const ryTop = lerp(plan.bodyRyTop[0], plan.bodyRyTop[1], girth) * scale * step.depth * depth;
+  const ryBottom = lerp(plan.bodyRyBottom[0], plan.bodyRyBottom[1], girth) * scale * step.depth * depth;
 
   // Where the trunk sits depends on what has to fit around it: an upright animal
   // needs headroom above and legroom below, a horizontal one needs nose and tail
@@ -396,13 +404,15 @@ function drawTail(p: Painter, l: Layout, kind: string): void {
  * its own material so a tusk reads as bone growing out of the animal rather
  * than as more coat.
  */
-function drawArmament(p: Painter, l: Layout, kind: ArmamentKind, reachCm: number): void {
-  if (kind === "none" || kind === "crest" || kind === "spines" || reachCm <= 0) return;
+function drawArmament(p: Painter, l: Layout, kind: ArmamentVariant): void {
+  if (kind === "none" || kind === "crest" || kind === "spines") return;
   const head = headAnchor(l);
   const { facing } = l;
-  // The measurement is in centimetres of animal; on the plate it is a fraction
-  // of the head, so a big weapon on a small head still fits the frame.
-  const reach = Math.min(head.r * 2.6, Math.max(2.5, head.r * 0.5 + reachCm * l.scale * 0.5));
+  // Sized to the head, not to the animal's armament in centimetres. A weapon
+  // that grew with its measurement gave every individual a different profile;
+  // a weapon drawn at one size per kind is a part, and a part can be replaced
+  // by a hand-drawn one later.
+  const reach = head.r * 1.9;
   const thick = Math.max(1.2, head.r * 0.26);
 
   paint(
@@ -455,14 +465,14 @@ function drawArmament(p: Painter, l: Layout, kind: ArmamentKind, reachCm: number
   );
 }
 
-function drawCrown(p: Painter, l: Layout, kind: string, display: string): void {
+function drawCrown(p: Painter, l: Layout, kind: CrownVariant, size: PartSet["crownSize"]): void {
   const { plan, cx, cy, rx, ryTop, scale, facing } = l;
   if (plan.crown === "none" || plan.crownReach <= 0) return;
-  // The gate vocabulary the illustration renderer reads means the same here: a
-  // suppressed crest is a small crest, not a missing one.
-  const suppressed = /naked|absent|none|hidden|smooth|plain/.test(kind) || /naked|absent|none|hidden/.test(display);
-  const grand = /grand|bold|full|high|display/.test(display);
-  const reach = plan.crownReach * scale * (suppressed ? 0.22 : grand ? 1.15 : 0.8);
+  if (kind === "none") return;
+  // Three sizes, named. A suppressed crest is a small crest, not a missing one —
+  // the epistatic gate reduces the part rather than deleting it, which is what
+  // makes the loss legible on the animal.
+  const reach = plan.crownReach * scale * { reduced: 0.22, normal: 0.8, grand: 1.15 }[size];
   if (reach < 1) return;
   const count = plan.crownCount;
   const topY = cy - ryTop;
@@ -911,15 +921,13 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
   const rng = createRng(phenotypeFingerprint(phenotype));
   const facing = options.flip ? -1 : 1;
 
-  const vigour = map.polygenicTraits.find((t) => t.id === "vigour");
-  const size = vigour
-    ? clamp01(((phenotype.stats["vigour"] ?? vigour.min) - vigour.min) / Math.max(1e-6, vigour.max - vigour.min))
-    : 0.5;
-  const layout = layoutFor(plan, phenotype.values[plan.traits.build] ?? 0.5, size, facing);
-
-  // The same measurements combat reads. The sprite draws them, which is the
-  // only way "the stat block is the animal" is true rather than a slogan.
+  // The measurements combat reads. The sprite draws their *categorical* halves —
+  // what kind of hide, which weapon, which tail — and states the rest on the
+  // card. Two animals of one species and build step share their art and differ
+  // in their numbers, which is how this genre has always worked.
   const body: Morphology = measure(phenotype, map);
+  const parts = partsFor(phenotype, plan, body);
+  const layout = layoutFor(plan, parts, facing);
 
   const painter: Painter = {
     material: createBitmap(SPRITE.width, SPRITE.height),
@@ -928,15 +936,15 @@ export function renderSprite(phenotype: Phenotype, map: GeneMap, options: Sprite
 
   // Back to front. The crown goes down before the trunk so a membrane or a
   // frond reads as growing out of the back rather than pasted onto it.
-  drawTail(painter, layout, trait(plan.traits.tail, "fan"));
-  drawCrown(painter, layout, trait(plan.traits.crown, "even"), trait(plan.traits.display, "none"));
-  drawLimbs(painter, layout, trait(plan.traits.limbs, "paddle"));
+  drawTail(painter, layout, parts.tail);
+  drawCrown(painter, layout, parts.crown, parts.crownSize);
+  drawLimbs(painter, layout, parts.limbs);
   if (plan.posture === "serpentine") drawSerpent(painter, layout);
   else drawBody(painter, layout);
   drawHead(painter, layout);
-  drawArmament(painter, layout, body.armamentKind, body.armament);
+  drawArmament(painter, layout, parts.armament);
   drawBelly(painter, layout);
-  drawMarkings(painter, layout, trait(plan.traits.markings, "none"), () => rng.next());
+  drawMarkings(painter, layout, parts.markings, () => rng.next());
 
   // Whatever the fit predicted, the drawing is the authority. Shifting the
   // finished material into the middle of the frame is a pure translation, so it

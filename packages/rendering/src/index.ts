@@ -16,6 +16,7 @@ export * from "./rig/plan.js";
 export * from "./rig/plans.js";
 export * from "./pixel/bitmap.js";
 export * from "./pixel/ramp.js";
+export * from "./pixel/parts.js";
 export * from "./pixel/sprite.js";
 export * from "./pixel/png.js";
 export * from "./qr.js";

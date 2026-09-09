@@ -13,7 +13,9 @@
 
 import { describe, expect, it } from "vitest";
 import { createRng, expressPhenotype, geneMapById, randomWildGenome, SPECIES } from "@chimaera/genetics";
-import { encodePng, renderSprite, toRgba } from "../src/index.js";
+import { encodePng, partInventory, partsFor, renderSprite, toRgba } from "../src/index.js";
+import { measure } from "@chimaera/genetics";
+import { planFor } from "../src/rig/plans.js";
 import { SLOT } from "../src/pixel/ramp.js";
 
 function sample(species: string, count: number, seed = "pixel-test") {
@@ -328,5 +330,71 @@ describe("getting the pixels out", () => {
     const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
     expect(view.getUint32(16)).toBe(sprite.width * 3);
     expect(view.getUint32(20)).toBe(sprite.height * 3);
+  });
+});
+
+describe("parts, not proportions", () => {
+  it("draws two animals of the same species and build step at the same size", () => {
+    // The point of "modular, not scalable": mass and length are stated on the
+    // card, not drawn. Two Bramblehogs of the same build share their art and
+    // differ in their numbers, which is what makes a hand-drawn part droppable.
+    const map = geneMapById("bramblehog");
+    const rng = createRng("same-build");
+    const byStep = new Map<string, number[]>();
+    for (let i = 0; i < 160; i++) {
+      const phenotype = expressPhenotype(randomWildGenome(map, rng), map);
+      const parts = partsFor(phenotype, planFor("bramblehog"), measure(phenotype, map));
+      const sprite = renderSprite(phenotype, map);
+      let filled = 0;
+      for (const value of sprite.pixels) if (value !== 0) filled++;
+      const key = `${parts.build}|${parts.limbs}|${parts.tail}|${parts.crown}|${parts.crownSize}|${parts.armament}`;
+      (byStep.get(key) ?? byStep.set(key, []).get(key) as number[]).push(filled);
+    }
+    // Within one part set the silhouette area must barely move: markings and
+    // hide texture do not change the outline, and nothing else may.
+    for (const [key, areas] of byStep) {
+      if (areas.length < 2) continue;
+      const low = Math.min(...areas);
+      const high = Math.max(...areas);
+      expect(high / low, `${key} area spread`).toBeLessThan(1.06);
+    }
+  });
+
+  it("snaps build to three steps and no more", () => {
+    const steps = new Set<string>();
+    for (const { id } of SPECIES) {
+      const map = geneMapById(id);
+      const rng = createRng(`steps:${id}`);
+      for (let i = 0; i < 120; i++) {
+        const phenotype = expressPhenotype(randomWildGenome(map, rng), map);
+        steps.add(partsFor(phenotype, planFor(id), measure(phenotype, map)).build);
+      }
+    }
+    expect([...steps].sort()).toEqual(["heavy", "middling", "slight"]);
+  });
+
+  it("names every part it needs, so an atlas can be enumerated", () => {
+    // The handoff needs a file list, and a variant nothing can reach is a piece
+    // somebody would draw for nothing.
+    for (const { id } of SPECIES) {
+      const files = partInventory(id);
+      expect(files.length).toBeGreaterThan(20);
+      for (const file of files) expect(file).toMatch(/^[a-z]+_[a-z]+_[a-z]+\.png$/);
+    }
+  });
+
+  it("never takes an animal's legs off because some other locus said none", () => {
+    // The bug this guards: the limb variant was read from every trait word at
+    // once, and nearly every species has a locus whose phenotype is the string
+    // "none" — an unlit lantern, a plain tail. Legged species lost their legs.
+    for (const id of ["quillfen", "bramblehog", "kiteossel", "sallowfinch", "ashenlorric"] as const) {
+      const map = geneMapById(id);
+      const rng = createRng(`legs:${id}`);
+      for (let i = 0; i < 80; i++) {
+        const phenotype = expressPhenotype(randomWildGenome(map, rng), map);
+        const parts = partsFor(phenotype, planFor(id), measure(phenotype, map));
+        expect(parts.limbs, `${id} limbs`).not.toBe("none");
+      }
+    }
   });
 });
