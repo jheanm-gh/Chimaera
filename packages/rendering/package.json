@@ -1,0 +1,19 @@
+{
+  "name": "@chimaera/rendering",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic genotype-to-image. Produces drawing data; serialisers turn it into SVG or a silhouette raster. No DOM.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@chimaera/genetics": "0.1.0"
+  }
+}

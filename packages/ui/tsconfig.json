@@ -1,0 +1,38 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client"
+    ],
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@chimaera/genetics": [
+        "../genetics/src/index.ts"
+      ],
+      "@chimaera/rendering": [
+        "../rendering/src/index.ts"
+      ],
+      "@chimaera/game": [
+        "../game/src/index.ts"
+      ],
+      "@chimaera/audio": [
+        "../audio/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts"
+  ]
+}

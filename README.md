@@ -1,2 +1,261 @@
-# Chimaera
-Chimaera Breeding Game
+# Chimaera — "Verdance" (working title)
+
+A genetics-first creature breeding game. You breed creatures whose appearance
+and abilities are generated from a real, simulated genome. Everything else —
+combat, exploration, story, economy — exists to give you a reason to breed, a
+way to test what you bred, and new genes to breed with.
+
+**The design law:** if a feature does not create pressure on the breeding
+decision, it does not ship.
+
+## Status
+
+| Phase | Scope | State |
+|---|---|---|
+| 1 | Genetics core + test suite | done |
+| 2 | Renderer: genotype to creature image | done |
+| 3 | Core loop: breed, hatch, raise, age, die | done |
+| 4 | Combat and expeditions | done |
+| 5 | Content: six species, evolution, campaign | done |
+| 6 | Modes: Daily Genome, Trials, Exhibition, Legacy | done |
+| 7 | Polish: audio, compendium, genome codes, a11y | done |
+
+## Layout
+
+```
+packages/genetics    pure simulation — zero runtime dependencies, headless
+packages/rendering   genotype to drawing data; SVG, silhouettes, QR, certificates
+packages/audio       genome to voice, and the adaptive score — as data, not sound
+packages/game        state, progression, economy — pure, serialisable, no clock
+packages/ui          the React app, a thin render layer over the packages above
+```
+
+`packages/genetics` is the product. It has no knowledge of rendering, saves, or
+gameplay, and an eslint rule forbids it from importing any other package. A
+second rule bans `Math.random()` anywhere in the simulation: every draw comes
+from an injected seeded RNG, or Daily Genome, replays and shareable genome codes
+all quietly break.
+
+## Commands
+
+```bash
+npm install
+npm test          # the full genetics suite
+npm run typecheck
+npm run lint
+npm run check     # all three
+npm run sim       # breed three populations over 20 generations and report
+npm run gallery   # write out/gallery.html: a plate per species, drawn from genomes
+npm run dev       # the game, at http://localhost:5173
+npm run build:app # production build of the app
+```
+
+`npm run sim` is the Phase 1 deliverable: it runs an open ranch, a closed ranch
+and a six-founder line-breeding herd side by side against the same gene map, so
+the inbreeding, linkage and lethality maths can be inspected before anything is
+pretty.
+
+```bash
+npm run sim -- --seed=mirefen --generations=20 --founders=40 --capacity=60
+```
+
+## What the genetics engine covers
+
+Diploid, three autosomes plus an XY pair. Linkage and crossover with per-gap
+recombination from map distance (Haldane, exactly additive). Simple dominance,
+incomplete dominance, co-dominance, polygenic stats, epistasis, sex linkage,
+sex-limited expression, and recessive lethal alleles. Point, novel and
+copy-number mutation with mutagen loads that always cost something. Wright's
+coefficient of inbreeding from the pedigree, with a tuned penalty curve.
+Epigenetic inheritance bounded so genes always dominate outcome. And a Punnett
+predictor that reasons from what the player *knows*, returning honest ranges
+where their information runs out.
+
+## What the renderer covers
+
+Nine part slots — body, head, limbs, tail, dorsal ridge, crest, marking layer,
+palette, size — each driven by named loci. Parts are parametric generators, so
+continuous loci give continuous variation. The renderer reads a phenotype and
+never a genome, so the picture cannot leak information the player has not
+earned. Output is drawing data; an SVG serialiser and a silhouette rasteriser
+consume it, which makes §6.4's "identifiable in pure black at 32x32" an
+executable test rather than a note — it measures coverage, connectivity, spread
+and distinctness, and it has already caught two real rig bugs.
+
+Colourblind modes remap the species' hue arc onto an axis each vision type
+retains, preserving ordering, and every marking carries a hatch texture so
+colour is never the only channel.
+
+## What the core loop covers
+
+Egg to hatchling to juvenile to adult to elder, with fertility opening in
+adulthood and closing before death, and an Archive that retires a favourite
+instead of losing it. Four raising axes — diet, habitat, training, bond — each
+with a genetic interaction, and growth that closes asymptotically on the
+ceiling, so raising approaches genes and can never pass them. Branching
+evolution decided by genotype plus raising path plus bond plus held item plus
+habitat, previewable as counts but never as a recipe.
+
+The ranch screen shows the herd; the pairing screen shows Wright's F for the
+pairing you are considering and a Punnett predictor that reads only what you
+have actually established, widening into ranges where your knowledge runs out.
+The pedigree view is free and always available, because a careful reader should
+be able to deduce a genotype without spending a lens.
+
+Saves are versioned JSON in IndexedDB with export and import to file, and a
+migration chain that exists before there is anything to migrate.
+
+## Combat, and what it is for
+
+Combat is the fitness function, not the game. A team of three, roles, stances
+and equipment are set beforehand; then it resolves with no input possible.
+Equipment is capped at a fifth of effective power, deterministically, and a test
+sweeps every loadout to prove it. Affinity is a co-dominant locus, so hybrids
+average both matchups — rounder defensively, blunter offensively.
+
+Variance is per-fight rather than per-hit, because per-hit noise averages away
+over fifty blows and makes win rate a step function of genetic advantage. The
+calibrated curve gives a 5% better lineage about 80% and a 10% better one about
+94%, so genes dominate while the band real breeding decisions live in still has
+resolution worth sampling.
+
+The League is safe and repeatable — it is the scoreboard. Bulk evaluation runs
+fifty to a thousand fights in a Web Worker and reports win rate and per-creature
+survival, which is how you find out which of your three keeps dying.
+Expeditions are the risk: a procedurally generated region, damage that carries
+between nodes, and permadeath.
+
+## The roster, and the campaign
+
+Six species, each built to pose one genetic problem the others do not: the
+Quillfen's lethal three centimorgans from its best speed allele; the
+Sallowfinch's whole hand on the X, where hens carry invisibly; the Bramblehog's
+blended spines hidden behind a keratin switch; the Kite-Ossel's flightless
+morph, which loses the trait and the evidence in the same animal; the
+Silt-Adder's two lethals in repulsion, so a healthy-looking wild adder is very
+often a double carrier; and the Ashen Lorric's two-stage pigment cascade, which
+teaches you the first lesson was a special case.
+
+They share one rig. What separates them is a body plan — posture, proportion
+and which trait drives which slot — and the pairwise silhouette test decides
+whether that worked: six icons at 32x32, every pair at least 10% of pixels
+apart, currently 13.3% at the closest. That test failed twice while the roster
+was being built, and both times the numbers in the body plans changed.
+
+Each species carries three to five evolution branches, exactly one of which is
+secret: it needs a rare genotype *and* a specific raising path, and a test
+proves it cannot be reached by raising alone.
+
+The campaign is eight chapters, one genetic concept each, framed as a
+restoration rather than a competition — the fen was farmed to a bottleneck by
+somebody else and your commission is to put working populations back into it.
+Chapters are **built from the gene map** rather than hard-coded, so chapter 4 on
+an Ashen Lorric genuinely poses the two-stage cascade that chapter 4 on a
+Quillfen does not. Objectives are predicates over the save, re-asked after every
+action and sticky once met, which means they can be tested without simulating a
+player — and they are: a scripted ranch with no selection cleverness at all
+completes chapters 1 and 2 through the real reducer.
+
+## Mixed stock
+
+A station is posted to one species — that is what the fen outside produces and
+what the campaign's commissions are written for — but the pens can hold
+anything you bring home. Every creature carries its own species and its gene map
+is resolved from that at the point of use, so a Silt-Adder in a Quillfen station
+expresses, draws and ages as a Silt-Adder. Cross-species pairings are refused
+rather than fudged.
+
+Each of the six biomes belongs to exactly one species, so an expedition's
+destination names an animal: travelling to the Galeshore is how a Quillfen
+station comes home with a Kite-Ossel, and it is the only way. That is the
+diegetic answer to a closed herd's problem, and it costs what an expedition
+costs.
+
+## The modes
+
+Seven besides the campaign, each opened by a predicate over the save rather than
+by a flag anyone has to remember to set.
+
+**Exhibition** judges the animal alone — conformation to a rotating seasonal
+standard, rarity, coherence and condition. Never a combat stat and never a
+genotype, because a ring that leaked one would be a free Deep Sequencer. Rarity
+is measured, not tagged: it is the surprisal of the *appearance* under that
+species' own wild allele frequencies.
+
+**Breeding Trials** are fifty-four authored puzzles, nine per species, curved
+across five tiers. Each is a closed ranch with a generation cap and no fen to
+catch anything from, scored on generations, purity and Wright's F — which pull
+against each other, because the fast answer is the inbred one. Every one is
+proved solvable in CI by a solver playing the real `breed()`.
+
+**Daily Genome** gives everyone the same pair, pool and target, seeded from the
+date, with one attempt. The puzzle is read off the pair rather than hoped for,
+so it is always solvable — a generated target the pair cannot reach would be a
+day on which every player in the world fails.
+
+**Rival Ranch** fights snapshots. A ghost is three genome codes plus loadout and
+condition, so a fight is a pure function of two snapshots and a seed and
+resolves identically on both machines without either talking to the other.
+Nothing can be hurt.
+
+**Stud Exchange** publishes a male as a pasteable offer. Breeding to one gives
+you a gamete and nothing else — no pedigree, no disclosure you did not pay for —
+and because a stud has no pedigree on your ranch, F for the pairing is zero.
+That is the whole reason a closed herd pays the fee.
+
+**Legacy** begins again carrying one archived ancestor's genome into a new
+population, with fewer founders and fewer berths each depth. Harder in this
+game's own terms: the bottleneck arrives sooner.
+
+Genome codes underpin the last three. Crockford base32 with a checksum, and a
+test corrupts every character position to every other symbol and asserts that
+not one corruption is ever accepted — a code that decoded into a *different
+valid genome* would look exactly like the genetics being broken.
+
+## Sound
+
+`packages/audio` produces specifications and never makes a noise; the app builds
+the Web Audio graph from them. That split exists because a voice is a
+*phenotype*: the same animal has to sound the same forever, two animals you
+cannot tell apart by looking must not be distinguishable by ear, and a
+well-bred line should sound like a line. `Math.random` is banned here for the
+same reason it is banned in the simulation.
+
+Pitch comes from size, timbre from body type, envelope from temperament — over
+two octaves across a species' range, because the player hears one call at a time
+and has to be able to tell siblings apart. A test measures the spread and fails
+if it collapses.
+
+The ranch theme is layers over one slow harmonic cycle, fading in across bands
+rather than switching on, so growth is heard as a swell and never as an event.
+Battle tempo tracks the whole field rather than your half of it, because tying
+it to your side would give away the result of a fight you cannot influence.
+Music, effects and creature calls are separately levelled and muted, and nothing
+plays until you ask it to.
+
+## The franchise hooks (§8)
+
+Genome codes, and a QR encoder written from the specification rather than
+pulled in — a test contains a decoder, checks the Reed-Solomon syndromes the way
+a scanner does, and verifies the error-correction codewords against the spec's
+own worked example.
+
+A Compendium that records what you have *seen* and never what exists, with
+completion counted against the whole roster. Community naming for novel alleles,
+recorded with the day so a server could arbitrate later. Lineage certificates as
+self-contained SVGs that fetch nothing and print no genome — the QR carries the
+animal, not the answers. And seasonal migrations on the ranch's own calendar,
+each putting one novel allele into the wild pool for ninety days and taking it
+away again.
+
+`WORLD.md` is the world bible: six named biomes, four factions, and an ecology
+written so that every piece of it makes the breeding decision heavier.
+
+## Getting about with a keyboard
+
+The herd is one tab stop with a roving focus and arrow keys — five hundred cards
+is not five hundred tab stops. Skip links sit above everything, dialogs close on
+Escape, and the tab order is measured by a script rather than assumed from the
+markup.
+
+See `DECISIONS.md` for why each of those works the way it does.

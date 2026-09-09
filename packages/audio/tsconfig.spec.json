@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist-spec",
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": ["test/**/*.ts", "tools/**/*.ts"],
+  "references": [{ "path": "./tsconfig.json" }, { "path": "../genetics" }]
+}
